@@ -111,9 +111,15 @@
     return origFetch(input, init);
   };
 
+  // Bump when Python sources change so GitHub Pages / browser caches cannot
+  // keep serving a stale stub or env.py.
+  const PYTHON_CACHE = "aec2";
+
   async function writeTree(pyodideInst, manifest, rootUrl) {
     for (const rel of manifest) {
-      const res = await origFetch(rootUrl + rel);
+      const res = await origFetch(rootUrl + rel + "?v=" + PYTHON_CACHE, {
+        cache: "no-store",
+      });
       if (!res.ok) throw new Error("Failed to load " + rel + " (" + res.status + ")");
       const text = await res.text();
       const virt = "/pages/" + rel;
@@ -150,7 +156,10 @@
     await micropip.install("pydantic");
 
     setStatus("Loading AFWIP rules…");
-    const manRes = await origFetch(withBase("/python/manifest.json"));
+    const manRes = await origFetch(
+      withBase("/python/manifest.json") + "?v=" + PYTHON_CACHE,
+      { cache: "no-store" }
+    );
     if (!manRes.ok) throw new Error("missing python/manifest.json");
     const manifest = await manRes.json();
     if (!Array.isArray(manifest)) {
@@ -163,6 +172,9 @@ import sys
 sys.path.insert(0, "/pages/stubs")
 sys.path.insert(0, "/pages")
 import session_api
+from afwip.env import AFWIPEnv
+if not hasattr(AFWIPEnv, "_clear_rewards"):
+    raise RuntimeError("AFWIPEnv missing _clear_rewards after Pages load")
 `);
     setStatus("Starting game UI…");
     readyResolve();

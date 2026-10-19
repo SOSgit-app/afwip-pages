@@ -273,6 +273,42 @@ class AFWIPEnv(AECEnv):
     def action_space(self, agent):
         return self._action_spaces[agent]
 
+    # PettingZoo AEC helpers — defined on AFWIPEnv itself so the Pages/Pyodide
+    # stub (or a broken import) cannot leave step() without _clear_rewards.
+    def _clear_rewards(self) -> None:
+        for agent in self.rewards:
+            self.rewards[agent] = 0
+
+    def _accumulate_rewards(self) -> None:
+        for agent, reward in self.rewards.items():
+            self._cumulative_rewards[agent] = (
+                self._cumulative_rewards.get(agent, 0) + reward
+            )
+
+    def _was_dead_step(self, action) -> None:
+        if action is not None:
+            raise ValueError("when an agent is dead, the only valid action is None")
+        agent = self.agent_selection
+        del self.terminations[agent]
+        del self.truncations[agent]
+        del self.rewards[agent]
+        del self._cumulative_rewards[agent]
+        del self.infos[agent]
+        self.agents.remove(agent)
+        deads = [
+            a for a in self.agents
+            if (self.terminations.get(a) or self.truncations.get(a))
+        ]
+        if deads:
+            if getattr(self, "_skip_agent_selection", None) is None:
+                self._skip_agent_selection = self.agent_selection
+            self.agent_selection = deads[0]
+        else:
+            if getattr(self, "_skip_agent_selection", None) is not None:
+                self.agent_selection = self._skip_agent_selection
+            self._skip_agent_selection = None
+        self._clear_rewards()
+
     # -- PettingZoo lifecycle ---------------------------------------------------
 
     def reset(self, seed: Optional[int] = None, options=None):
