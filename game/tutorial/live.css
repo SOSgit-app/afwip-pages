@@ -1,0 +1,637 @@
+#live-coach {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: min(96px, 16vh);
+  display: flex;
+  flex-direction: column;
+  background: #10151e;
+  color: #dce3f0;
+  border-bottom: 2px solid #ffd166;
+  font-family: "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+#live-coach[hidden] { display: none; }
+.live-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 0;
+  flex: 0 0 auto;
+}
+.live-brand {
+  color: #ffd166;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.live-title { font-weight: 700; font-size: 13px; }
+.live-spacer { flex: 1; }
+#live-coach button {
+  font-family: inherit;
+  background: #1c2333;
+  color: #dce3f0;
+  border: 1px solid #2a3348;
+  border-radius: 6px;
+  padding: 3px 9px;
+  font-size: 12px;
+  cursor: pointer;
+}
+#live-coach button.primary {
+  color: #ffd166;
+  border-color: #ffd166;
+  background: rgba(255, 209, 102, 0.1);
+}
+#live-coach button:hover { border-color: #ffd166; }
+#live-coach button:disabled { opacity: 0.45; cursor: default; }
+.live-body {
+  display: flex;
+  gap: 8px;
+  padding: 4px 10px 6px;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+}
+.live-art { display: flex; gap: 6px; flex: 0 0 auto; align-self: flex-start; }
+.live-art img {
+  height: 56px;
+  width: auto;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+}
+.live-art img.live-card { cursor: zoom-in; }
+#live-card-preview {
+  position: fixed;
+  top: calc(var(--live-h, 180px) + 10px);
+  right: 384px;
+  z-index: 27;
+  width: auto;
+  max-height: calc(100vh - var(--live-h, 180px) - 20px);
+  pointer-events: none;
+  background: #fff;
+  border: 2px solid #20242e;
+  border-radius: 10px;
+  padding: 5px;
+  box-shadow: 0 8px 28px #00000080;
+}
+#live-card-preview[hidden] { display: none; }
+#live-card-preview img {
+  display: block;
+  width: auto;
+  max-width: 250px;
+  max-height: calc(100vh - var(--live-h, 180px) - 32px);
+  height: auto;
+  border-radius: 6px;
+}
+.live-copy { min-width: 0; font-size: 12px; line-height: 1.3; }
+.live-suggest {
+  margin: 0 0 3px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(255, 209, 102, 0.14);
+  border: 1px solid rgba(255, 209, 102, 0.55);
+  color: #ffe7a8;
+  font-weight: 700;
+  font-size: 12px;
+}
+.live-suggest[hidden] { display: none; }
+#live-continue {
+  margin: 0;
+  display: inline-block;
+  background: #ffd166;
+  color: #1a1404;
+  border: 1px solid #ffd166;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: normal;
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  animation: live-continue-blink 0.8s steps(2, start) infinite;
+}
+#live-continue:hover { background: #ffe7a8; }
+#live-continue:disabled { opacity: 0.45; cursor: default; animation: none; }
+#live-continue[hidden] { display: none; }
+@keyframes live-continue-blink {
+  0% { background: #ffd166; color: #1a1404; box-shadow: 0 0 0 0 rgba(255, 209, 102, 0); }
+  50% { background: #fff6d4; color: #1a1404; box-shadow: 0 0 16px 4px #ffd166; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #live-continue { animation: none; }
+}
+.choice-btn.live-pick,
+.choice-btn.live-pick:hover {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-color: #ffd166;
+  background: rgba(255, 209, 102, 0.2);
+  color: #fff6d4;
+  box-shadow: inset 4px 0 0 #ffd166;
+}
+.choice-btn.live-lock,
+.choice-btn.live-lock:hover {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.choice-btn.live-lock::after {
+  content: "(Locked for Tutorial)";
+  margin-left: 8px;
+  font-family: "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #c5d0e4;
+  white-space: nowrap;
+}
+.choice-btn.live-pick::after {
+  content: "Suggested";
+  flex: 0 0 auto;
+  font-family: "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #1a1404;
+  background: #ffd166;
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+.live-why { margin: 0 0 2px; font-weight: 650; font-size: 12px; color: #fff; }
+.live-now { margin: 0 0 2px; color: #d5dbe8; }
+.live-lesson, .live-look, .live-just { margin: 0 0 2px; color: #c5d0e4; font-size: 11px; }
+.live-just { color: #8b96ad; font-family: ui-monospace, Consolas, monospace; font-size: 10px; }
+.live-hint { margin: 0; color: #ffd166; font-size: 11px; }
+#live-coach.first { background: #141b28; }
+/* Padding on #root (not margin on .app) so the coach offset cannot create a
+   second document scrollbar under the board. */
+html:has(body.afwip-live),
+body.afwip-live {
+  overflow: hidden;
+  height: 100%;
+}
+body.afwip-live #root {
+  height: 100%;
+  padding-top: var(--live-h, 168px);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+body.afwip-live .app {
+  margin-top: 0;
+  height: 100%;
+  overflow: hidden;
+}
+#live-offer {
+  margin: 0;
+  color: #ffd166;
+  background: #1c2333;
+  border: 1px solid #ffd166;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: normal;
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+}
+#live-offer:hover { background: #232c42; }
+#live-offer[hidden] { display: none; }
+#game-back,
+#game-manual,
+#example-drafts,
+#game-details {
+  margin: 0;
+  color: #dce3f0;
+  background: #1c2333;
+  border: 1px solid #2a3348;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: normal;
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+}
+#game-back:hover,
+#game-manual:hover,
+#example-drafts:hover,
+#game-details:hover,
+#game-details.is-open { border-color: #ffd166; background: #232c42; }
+#game-back[hidden],
+#game-manual[hidden],
+#example-drafts[hidden],
+#game-details[hidden],
+#game-prompt[hidden],
+#game-details-panel[hidden] { display: none; }
+#game-details-panel {
+  position: fixed;
+  z-index: 55;
+  padding: 12px 14px 14px;
+  border: 1px solid #2a3348;
+  border-radius: 10px;
+  background: #161b26;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  color: #dce3f0;
+}
+.game-details-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.game-details-head h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #ffd166;
+}
+#game-details-close {
+  margin: 0;
+  padding: 4px 10px;
+  border: 1px solid #2a3348;
+  border-radius: 6px;
+  background: #1c2333;
+  color: #dce3f0;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+#game-details-close:hover { border-color: #ffd166; color: #ffd166; }
+#game-details-body .status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12.5px;
+}
+#game-details-body .status-strip .k {
+  color: #8b96ad;
+  margin-right: 5px;
+}
+/* Status strip lives in Game Details now. */
+.left-col > .panel:has(.status-strip) {
+  display: none !important;
+}
+#game-prompt {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0;
+  margin: 0 4px 0 0;
+  max-width: min(420px, 36vw);
+  overflow: hidden;
+  color: #dce3f0;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+}
+#game-prompt .who {
+  font-size: 12px;
+  margin-left: 8px;
+  flex: 0 0 auto;
+}
+#game-prompt .who.US { color: #4cc3ff; }
+#game-prompt .who.PRC { color: #ff5f56; }
+#manual-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  padding: 24px;
+  background: rgba(6, 10, 16, 0.72);
+}
+#manual-sheet[hidden] { display: none; }
+#manual-sheet iframe {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border: 1px solid #2a3348;
+  border-radius: 12px;
+  background: #0d1117;
+}
+/* Keep the game id clear of Game Manual, and of Unhide tutorial when that is open. */
+body.afwip-manual .topbar > span:last-of-type {
+  margin-right: var(--manual-w, 148px);
+}
+/* Hover card sits over the opponent's side of the board so the choice
+   list and hands stay clear. US viewer → left (PRC). PRC viewer → right
+   of the board, just left of the choice column (US). The box hugs the image. */
+.choice-card-preview,
+#live-card-preview {
+  top: auto;
+  bottom: 12px;
+  left: 12px;
+  right: auto;
+  width: max-content;
+  max-width: 320px;
+  height: auto;
+  max-height: calc(100vh - var(--live-h, 0px) - 84px);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  overflow: hidden;
+  display: block;
+  z-index: 20;
+  pointer-events: none;
+}
+body.afwip-viewer-prc .choice-card-preview,
+body.afwip-viewer-prc #live-card-preview {
+  left: auto;
+  right: 388px;
+}
+.choice-card-preview img,
+#live-card-preview img {
+  width: auto;
+  height: auto;
+  max-width: 320px;
+  max-height: calc(100vh - var(--live-h, 0px) - 84px);
+  object-fit: contain;
+  object-position: left bottom;
+  display: block;
+  border-radius: 4px;
+}
+body.afwip-viewer-prc .choice-card-preview img,
+body.afwip-viewer-prc #live-card-preview img {
+  object-position: right bottom;
+}
+body.afwip-live .choice-card-preview,
+body.afwip-live #live-card-preview {
+  z-index: 26;
+}
+.live-now,
+.live-lesson,
+.live-look,
+.live-just,
+.live-hint {
+  display: none !important;
+}
+@media (max-width: 800px) {
+  #live-coach { max-height: min(88px, 18vh); }
+  .live-art img { height: 44px; }
+}
+/* Prompt is mirrored into the topbar (#game-prompt); keep the original in the
+   DOM for quota.js but out of the selection list. */
+.choices-scroll > .prompt {
+  display: none;
+}
+/* Fit PRC | board | US into one viewport. The US column scrolls so the
+   selection list under the US hand stays reachable. */
+body:has(.app > .main),
+html:has(.app > .main) {
+  overflow: hidden;
+  height: 100%;
+}
+body:has(.app > .main) #root,
+.app:has(> .main) {
+  height: 100%;
+  overflow: hidden;
+}
+.app > .main {
+  overflow: hidden;
+  align-items: stretch;
+  grid-template-columns: minmax(140px, 180px) minmax(0, 1fr) minmax(280px, 340px);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.roster-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.side-col,
+.left-col,
+.right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: static;
+  align-self: stretch;
+}
+
+/* Side columns: roster on top, selections below — scroll to reach them. */
+.side-col,
+.right-col {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.side-col .panel,
+.right-col .roster-stack .panel {
+  padding: 6px 8px;
+}
+
+.side-col .panel h2,
+.right-col .roster-stack .panel h2 {
+  margin: 0 0 4px;
+  font-size: 12px;
+}
+
+.side-col .card-thumb,
+.right-col .roster-stack .card-thumb {
+  width: 52px;
+}
+
+.side-col .card-cell,
+.right-col .roster-stack .card-cell {
+  width: 52px;
+}
+
+.left-col > .panel:not(.board-panel):not(.log-panel) {
+  flex: 0 0 auto;
+}
+
+.left-col > .board-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.left-col .board-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.left-col .board-svg {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+}
+
+.left-col .log-panel {
+  flex: 0 0 auto;
+  padding: 0;
+  overflow: hidden;
+}
+.left-col .log-panel.log-collapsed {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  overflow: hidden;
+}
+.left-col .log-panel:not(.log-collapsed) {
+  max-height: min(360px, 45vh);
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.left-col .log-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #161b26;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  flex: 0 0 auto;
+}
+.left-col .log-toggle:hover {
+  background: rgba(255, 209, 102, 0.08);
+}
+.left-col .log-toggle h2 {
+  margin: 0;
+  font-size: 13px;
+}
+.left-col .log-chevron {
+  flex: 0 0 auto;
+  color: #ffd166;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.left-col .log-panel .copy-ai {
+  margin: 0 12px 8px;
+  padding: 6px 10px;
+  flex: 0 0 auto;
+}
+.left-col .log-panel .last-roll {
+  margin: 0 12px 8px;
+  padding: 8px 10px;
+  flex: 0 0 auto;
+}
+.left-col .log-panel .last-roll h2 {
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+.left-col .log-panel .score-report {
+  margin: 0 12px 8px;
+  padding: 8px 10px;
+  flex: 0 0 auto;
+}
+.left-col .log-panel .score-report h2 {
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+.left-col .log-panel .event-log {
+  padding: 0 12px 10px;
+  min-height: 96px;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.left-col .copy-ai {
+  padding: 6px 10px;
+}
+
+/* Dice / roll prompt stays under the board. */
+.left-col > .panel.roll-prompt {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: min(240px, 30vh);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px 10px;
+}
+
+.side-col > .panel:not(.choices-scroll),
+.side-col > .roster-stack,
+.right-col > .panel:not(.choices-scroll),
+.right-col > .copy-ai,
+.right-col > .panels-2col,
+.right-col > .roster-stack {
+  flex: 0 0 auto;
+}
+
+/* Selection list sits under that side's shot-down / squadrons / hand. */
+.side-col > .choices-scroll,
+.right-col > .choices-scroll {
+  flex: 0 0 auto;
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
+  margin-top: 4px;
+  padding-bottom: 12px;
+}
+.side-col > .choices-scroll > .prompt,
+.right-col > .choices-scroll > .prompt {
+  display: block;
+  margin: 0 0 8px;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Card preview sits over the board, not over the PRC roster column. */
+body.afwip-viewer-us .choice-card-preview,
+body.afwip-viewer-us #live-card-preview {
+  left: calc(var(--prc-col, 180px) + 18px);
+  right: auto;
+}
+.prompt .pick-quota,
+#game-prompt .pick-quota {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid #ffd166;
+  background: #1c2333;
+  color: #ffd166;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+  flex: 0 0 auto;
+}

@@ -1,0 +1,36 @@
+/* While hovering a home choice, fill that one zone. Gold for the US
+   airbase and contingency location, red for a PRC airbase or standoff. */
+@keyframes home-glow {
+  0%, 100% { filter: drop-shadow(0 0 1px #e2a21a); }
+  50% { filter: drop-shadow(0 0 9px #ffb703); }
+}
+.board-svg rect.home-pick {
+  fill: #ffe08a;
+  stroke: #e2a21a;
+  stroke-width: 4px;
+  animation: home-glow 1.15s ease-in-out infinite;
+}
+.board-svg rect.home-pick.home-pick-hot {
+  fill: #ffd166;
+  stroke: #fff6d4;
+  stroke-width: 6px;
+  animation: none;
+  filter: drop-shadow(0 0 6px #ffd166);
+}
+@keyframes home-glow-prc {
+  0%, 100% { filter: drop-shadow(0 0 1px #c43a32); }
+  50% { filter: drop-shadow(0 0 9px #ff5f56); }
+}
+.board-svg rect.home-pick-prc {
+  fill: #ffb4ae;
+  stroke: #e24a42;
+  stroke-width: 4px;
+  animation: home-glow-prc 1.15s ease-in-out infinite;
+}
+.board-svg rect.home-pick-prc.home-pick-hot {
+  fill: #ff5f56;
+  stroke: #ffe4e1;
+  stroke-width: 6px;
+  animation: none;
+  filter: drop-shadow(0 0 6px #ff5f56);
+}

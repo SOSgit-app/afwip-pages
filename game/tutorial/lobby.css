@@ -1,0 +1,254 @@
+/* Start screen. The illustration stays visible through an ocean-glass
+   briefing panel with a gold frame, so the menu reads as part of the picture. */
+body:has(.menu) {
+  background-color: #f7f4ee;
+  background-image: url("../../afwipic.png");
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: 100% auto;
+  overflow: auto;
+}
+body:has(.menu) #root,
+body:has(.menu) .app {
+  height: auto;
+  min-height: 100%;
+  background: transparent;
+}
+
+body:has(.menu) .menu {
+  position: relative;
+  margin: 188px auto 56px;
+  max-width: 720px;
+  padding: 34px 32px 30px;
+  border-radius: 4px;
+  border: 2px solid #e8c56b;
+  background:
+    linear-gradient(#ffe7a3, #ffe7a3) left 14px top 14px / 26px 3px no-repeat,
+    linear-gradient(#ffe7a3, #ffe7a3) left 14px top 14px / 3px 26px no-repeat,
+    linear-gradient(#ffe7a3, #ffe7a3) right 14px top 14px / 26px 3px no-repeat,
+    linear-gradient(#ffe7a3, #ffe7a3) right 14px top 14px / 3px 26px no-repeat,
+    linear-gradient(#ffe7a3, #ffe7a3) left 14px bottom 14px / 26px 3px no-repeat,
+    linear-gradient(#ffe7a3, #ffe7a3) left 14px bottom 14px / 3px 26px no-repeat,
+    linear-gradient(#ffe7a3, #ffe7a3) right 14px bottom 14px / 26px 3px no-repeat,
+    linear-gradient(#ffe7a3, #ffe7a3) right 14px bottom 14px / 3px 26px no-repeat,
+    linear-gradient(180deg, rgba(12, 48, 86, 0.78), rgba(7, 28, 58, 0.84));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 236, 190, 0.28),
+    inset 0 0 80px rgba(76, 195, 255, 0.08),
+    0 0 0 7px rgba(8, 28, 56, 0.22),
+    0 24px 50px rgba(6, 20, 40, 0.28);
+}
+
+body:has(.menu) .menu h1 {
+  margin: 2px 0 0;
+  color: #ffe08a;
+  font-size: 42px;
+  letter-spacing: 0.32em;
+  text-indent: 0.32em;
+  text-shadow: 0 2px 0 rgba(20, 12, 0, 0.45);
+}
+body:has(.menu) .menu .subtitle {
+  margin: 6px 0 8px;
+  color: #d7e7f6;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-size: 12px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+body:has(.menu) .menu .or-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 2px 0;
+  color: #f0d48a;
+  letter-spacing: 0.18em;
+}
+body:has(.menu) .menu .or-divider::before,
+body:has(.menu) .menu .or-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(232, 197, 107, 0.85), transparent);
+}
+body:has(.menu) .menu .opts label,
+body:has(.menu) .menu .mode-card .desc,
+body:has(.menu) .menu .tourney-sub {
+  color: #e4eef8;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+}
+
+body:has(.menu) .menu button {
+  border-radius: 3px;
+  background: rgba(8, 32, 62, 0.94);
+  border-color: rgba(214, 228, 244, 0.28);
+  color: #f7fbff;
+}
+body:has(.menu) .menu button:hover:not(:disabled) {
+  background: rgba(16, 52, 92, 0.97);
+  border-color: #ffe08a;
+  color: #fff;
+}
+
+body:has(.menu) .menu button.tourney {
+  align-self: stretch;
+  width: 100%;
+  padding: 14px 18px;
+  border-width: 1px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+body:has(.menu) .menu button.tutorial-card {
+  border-color: #7fd4ff;
+  color: #f4fbff;
+  background:
+    linear-gradient(180deg, rgba(90, 196, 245, 0.38), rgba(28, 110, 168, 0.16)),
+    rgba(10, 46, 86, 0.96);
+}
+body:has(.menu) .menu button.tutorial-card:hover:not(:disabled) {
+  background:
+    linear-gradient(180deg, rgba(126, 214, 255, 0.48), rgba(40, 140, 200, 0.22)),
+    rgba(12, 58, 104, 0.98);
+  border-color: #b9ecff;
+}
+body:has(.menu) .menu button.live-card {
+  border-color: #ffd166;
+  color: #ffe7a8;
+  background:
+    linear-gradient(180deg, rgba(255, 209, 102, 0.42), rgba(168, 118, 28, 0.2)),
+    rgba(46, 34, 10, 0.96);
+}
+body:has(.menu) .menu button.live-card:hover:not(:disabled) {
+  background:
+    linear-gradient(180deg, rgba(255, 220, 130, 0.52), rgba(190, 136, 36, 0.26)),
+    rgba(58, 42, 12, 0.98);
+  color: #fff8e4;
+}
+body:has(.menu) .menu button.tourney:not(.tutorial-card):not(.live-card):not(.builds-card) {
+  border-color: rgba(232, 197, 107, 0.85);
+  color: #ffe7a8;
+  background:
+    linear-gradient(180deg, rgba(255, 209, 102, 0.18), rgba(255, 209, 102, 0.06)),
+    rgba(12, 42, 76, 0.96);
+}
+.menu button.tutorial-card .tourney-sub,
+.menu button.live-card .tourney-sub {
+  color: #e7f2fb;
+  max-width: 38em;
+  line-height: 1.45;
+}
+
+body:has(.menu) .menu .mode-cards {
+  gap: 10px;
+}
+body:has(.menu) .menu .mode-card {
+  padding: 16px 12px;
+  border-radius: 3px;
+  border-width: 1px;
+  background: rgba(8, 36, 68, 0.94);
+  border-color: rgba(190, 214, 236, 0.42);
+}
+body:has(.menu) .menu .mode-card .title {
+  color: #fff;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 13px;
+}
+body:has(.menu) .menu .mode-card.selected {
+  border-color: #ffd166;
+  background:
+    linear-gradient(180deg, rgba(255, 209, 102, 0.32), rgba(255, 209, 102, 0.12)),
+    rgba(40, 30, 8, 0.96);
+  box-shadow: inset 0 0 0 1px rgba(255, 209, 102, 0.45), 0 0 18px rgba(255, 209, 102, 0.15);
+}
+
+body:has(.menu) .menu button.start {
+  align-self: center;
+  min-width: 220px;
+  padding: 13px 36px;
+  border: 1px solid #fff1c4;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #ffe7a3, #e2b23a);
+  color: #2a1c04;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  box-shadow: 0 4px 0 #8d6a18, 0 10px 18px rgba(0, 0, 0, 0.22);
+}
+body:has(.menu) .menu button.start:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fff3c8, #f0c85a);
+  color: #2a1c04;
+  border-color: #fff;
+}
+body:has(.menu) .menu button.start:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #8d6a18;
+}
+
+body:has(.menu) .menu select,
+body:has(.menu) .menu input {
+  background: rgba(4, 16, 34, 0.45);
+  color: #f7fbff;
+  border: 1px solid rgba(232, 197, 107, 0.45);
+  border-radius: 3px;
+}
+body:has(.menu) .menu select:focus,
+body:has(.menu) .menu input:focus {
+  outline: none;
+  border-color: #ffe08a;
+}
+
+/* Small label in the panel's top-right corner, inside the gold bracket. */
+#menu-credits {
+  position: fixed;
+  z-index: 30;
+  margin: 0;
+  padding: 2px 8px;
+  font-family: "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  line-height: 1.45;
+  color: #ffe7a3;
+  background: rgba(8, 28, 56, 0.78);
+  border: 1px solid rgba(232, 197, 107, 0.75);
+  border-radius: 3px;
+  cursor: pointer;
+}
+#menu-credits:hover {
+  color: #fff6d4;
+  background: rgba(16, 44, 82, 0.92);
+  border-color: #ffe08a;
+}
+#menu-credits[hidden],
+#menu-credits-card[hidden] { display: none; }
+#menu-credits-card {
+  position: fixed;
+  z-index: 31;
+  width: 248px;
+  margin: 0;
+  padding: 14px 16px 12px;
+  background: rgba(8, 24, 48, 0.96);
+  border: 1px solid #e8c56b;
+  border-radius: 4px;
+  box-shadow: 0 12px 28px rgba(6, 20, 40, 0.45);
+  color: #f4fbff;
+  font-family: "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+}
+#menu-credits-card .credits-kicker {
+  margin: 0 0 8px;
+  color: #ffe08a;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 700;
+}
+#menu-credits-card .credits-name {
+  margin: 10px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+#menu-credits-card .credits-role {
+  margin: 1px 0 0;
+  color: #d7e7f6;
+  font-size: 12px;
+}

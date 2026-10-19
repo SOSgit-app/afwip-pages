@@ -1,0 +1,702 @@
+/* Live tutorial dock. The player is the US side. The bar says why the
+   current choice matters, and the first time each idea appears it also
+   teaches the rule. Dice are handled by die.js. */
+(function () {
+  const KEY = "afwip_live";
+  let note = null;
+  let seen = new Set();
+  let gameId = null;
+  let fromTutorial = false;
+  let lastRev = null;
+  let lastSig = null;
+  let pacedFor = null;
+
+  const dock = document.createElement("section");
+  dock.id = "live-coach";
+  dock.hidden = true;
+  dock.innerHTML = [
+    '<div class="live-top">',
+    '  <div class="live-brand">Tutorial</div>',
+    '  <div class="live-title" id="live-title"></div>',
+    '  <div class="live-spacer"></div>',
+    '  <button type="button" id="live-next" class="primary">Got it</button>',
+    '  <button type="button" id="live-hide">Hide</button>',
+    '</div>',
+    '<div class="live-body">',
+    '  <div class="live-art" id="live-art"></div>',
+    '  <div class="live-copy">',
+    '    <p class="live-suggest" id="live-suggest"></p>',
+    '    <p class="live-why" id="live-why"></p>',
+    '    <p class="live-now" id="live-now"></p>',
+    '    <p class="live-lesson" id="live-lesson"></p>',
+    '    <p class="live-look" id="live-look"></p>',
+    '    <p class="live-just" id="live-just"></p>',
+    '    <p class="live-hint" id="live-hint"></p>',
+    '  </div>',
+    '</div>'
+  ].join("");
+  document.body.append(dock);
+
+  const art = dock.querySelector("#live-art");
+  const title = dock.querySelector("#live-title");
+  const suggest = dock.querySelector("#live-suggest");
+  const continueBtn = document.createElement("button");
+  continueBtn.id = "live-continue";
+  continueBtn.type = "button";
+  continueBtn.textContent = "Continue";
+  continueBtn.hidden = true;
+  document.body.append(continueBtn);
+  const why = dock.querySelector("#live-why");
+  const now = dock.querySelector("#live-now");
+  const lesson = dock.querySelector("#live-lesson");
+  const look = dock.querySelector("#live-look");
+  const just = dock.querySelector("#live-just");
+  const hint = dock.querySelector("#live-hint");
+  const nextBtn = dock.querySelector("#live-next");
+
+  function wanted() {
+    try { return localStorage.getItem(KEY) === "1"; } catch (e) { return false; }
+  }
+  function setWanted(on) {
+    try { localStorage.setItem(KEY, on ? "1" : "0"); } catch (e) {}
+  }
+  function readGame() {
+    const el = document.querySelector(".topbar");
+    if (!el) return null;
+    const m = el.textContent.match(/game\s+([0-9a-f]+)\s+·\s+rev\s+(\d+)/i);
+    return m ? { id: m[1], rev: Number(m[2]) } : null;
+  }
+  function rolling() {
+    return !!document.querySelector(".roll-prompt");
+  }
+  function dieNote(data) {
+    return !!(data && data.suggest && data.suggest.indexOf("Click the die") === 0);
+  }
+  function quotedPick(text) {
+    if (!text || text.indexOf('Pick "') !== 0) return "";
+    const end = text.indexOf('". ');
+    return end > 6 ? text.slice(6, end) : "";
+  }
+  function hintFor(data) {
+    if (data.hold === "watch") {
+      if (/skip ahead/i.test(data.suggest || "")) return "Click Continue once to let them finish their draft.";
+      return "Look at the board, then click Continue.";
+    }
+    if (dieNote(data) || rolling()) return "Click the die.";
+    const label = quotedPick(data.suggest || "");
+    const buttons = [...document.querySelectorAll(".choice-btn")];
+    if (label && buttons.some((b) => (b.textContent || "").trim() === label)) {
+      return "Use the suggestion, then click that choice on the right.";
+    }
+    if (!buttons.length) return "The next choice appears on the right.";
+    return "Click one of your choices on the right.";
+  }
+  let recovering = false;
+  async function recoverDie(game) {
+    if (!game || recovering) return;
+    recovering = true;
+    try {
+      const res = await fetch("/api/games/" + game.id);
+      if (res.status === 404) {
+        title.textContent = "This match stopped";
+        suggest.textContent = "This game is no longer running.";
+        suggest.hidden = false;
+        why.textContent = "";
+        now.textContent = "";
+        lesson.textContent = "The board is the last view of it. Click New game, then Tutorial, to start again.";
+        lesson.hidden = false;
+        look.textContent = "";
+        look.hidden = true;
+        just.textContent = "";
+        just.hidden = true;
+        continueBtn.hidden = true;
+        nextBtn.hidden = true;
+        hint.textContent = "Click New game, then Tutorial.";
+        dock.hidden = false;
+        document.body.classList.add("afwip-live");
+        note = null;
+        lastSig = "gone";
+        fit();
+        return;
+      }
+      if (!res.ok) return;
+      const view = await res.json();
+      if (view.roll_pending && typeof window.__afwipApply === "function") {
+        window.__afwipApply(view);
+        lastSig = null;
+      }
+    } catch (e) {
+      return;
+    } finally {
+      recovering = false;
+    }
+  }
+  function lessonFirst(data) {
+    if (seen.has(data.concept)) return false;
+    if (data.concept === "roll" && (seen.has("initiative") || seen.has("cyber") || seen.has("intel") || seen.has("acquire") || seen.has("shoot"))) {
+      seen.add("roll");
+      saveSeen();
+      return false;
+    }
+    return true;
+  }
+  function viewSig(game) {
+    const prompt = document.querySelector(".prompt");
+    const choices = [...document.querySelectorAll(".choice-btn")].map((b) => (b.textContent || "").trim()).join("~");
+    return [game.id, game.rev, rolling() ? "roll" : "play", prompt ? prompt.textContent.trim() : "", choices].join("|");
+  }
+  function loadSeen(id) {
+    try {
+      return new Set(JSON.parse(sessionStorage.getItem("afwip_seen_" + id) || "[]"));
+    } catch (e) { return new Set(); }
+  }
+  function saveSeen() {
+    if (!gameId) return;
+    try { sessionStorage.setItem("afwip_seen_" + gameId, JSON.stringify([...seen])); } catch (e) {}
+  }
+  const cardPreview = document.createElement("div");
+  cardPreview.id = "live-card-preview";
+  cardPreview.hidden = true;
+  const cardPreviewImg = document.createElement("img");
+  cardPreview.append(cardPreviewImg);
+  document.body.append(cardPreview);
+
+  function showCard(src, alt) {
+    cardPreviewImg.src = src;
+    cardPreviewImg.alt = alt;
+    cardPreview.hidden = false;
+  }
+  function hideCard() {
+    cardPreview.hidden = true;
+  }
+  function figure(src, alt, zoom) {
+    const img = document.createElement("img");
+    img.src = src;
+    img.alt = alt;
+    img.addEventListener("load", fit);
+    if (zoom) {
+      img.className = "live-card";
+      img.addEventListener("mouseenter", () => showCard(src, alt));
+      img.addEventListener("mouseleave", hideCard);
+    }
+    return img;
+  }
+  function fit() {
+    if (dock.hidden) {
+      document.documentElement.style.removeProperty("--live-h");
+    } else {
+      document.documentElement.style.setProperty("--live-h", dock.offsetHeight + "px");
+    }
+    placeChrome();
+  }
+  function syncViewerSide() {
+    const badge = document.querySelector(".topbar .side-us, .topbar .side-prc");
+    const side = badge && /^(US|PRC)$/.test((badge.textContent || "").trim())
+      ? badge.textContent.trim()
+      : "US";
+    document.body.classList.toggle("afwip-viewer-us", side === "US");
+    document.body.classList.toggle("afwip-viewer-prc", side === "PRC");
+    const prcCol = document.querySelector(".side-col-prc");
+    if (prcCol) {
+      document.documentElement.style.setProperty("--prc-col", Math.round(prcCol.getBoundingClientRect().width) + "px");
+    }
+  }
+  function render(data, first) {
+    title.textContent = data.title;
+    suggest.textContent = data.suggest || "";
+    suggest.hidden = !data.suggest;
+    continueBtn.hidden = data.hold !== "watch";
+    why.textContent = data.why || "";
+    why.hidden = !why.textContent;
+    // Keep the dock to the yellow pick line + bold why. Extra lesson copy stays off.
+    now.textContent = "";
+    now.hidden = true;
+    lesson.textContent = "";
+    lesson.hidden = true;
+    look.textContent = "";
+    look.hidden = true;
+    just.textContent = "";
+    just.hidden = true;
+    hint.textContent = "";
+    hint.hidden = true;
+    hideCard();
+    art.replaceChildren();
+    (data.cards || []).slice(0, 2).forEach((id) => {
+      art.append(figure("/art/cards/" + id + ".jpg", "Card " + id, true));
+    });
+    (data.tokens || []).slice(0, 2).forEach((slug) => {
+      art.append(figure("/art/tokens/" + slug + ".jpg", slug));
+    });
+    nextBtn.hidden = true;
+    if (first && data.concept) {
+      seen.add(data.concept);
+      if (data.concept === "initiative" || data.concept === "cyber" || data.concept === "intel" || data.concept === "acquire" || data.concept === "shoot" || data.concept === "roll") {
+        seen.add("roll");
+      }
+      saveSeen();
+    }
+    if (dieNote(data) && !rolling()) recoverDie(readGame());
+    dock.classList.remove("first");
+    fit();
+    markPick();
+  }
+
+  let scrolledPick = "";
+  function suggestedLabel() {
+    if (dock.hidden) return "";
+    const text = suggest.textContent || "";
+    if (!text.startsWith('Pick "')) return "";
+    const end = text.indexOf('". ');
+    return end > 6 ? text.slice(6, end) : "";
+  }
+  function markPick() {
+    const label = suggestedLabel();
+    const buttons = [...document.querySelectorAll(".choice-btn")];
+    const match = label
+      ? buttons.find((b) => (b.textContent || "").trim() === label)
+      : null;
+    buttons.forEach((b) => {
+      const on = b === match;
+      if (b.classList.contains("live-pick") !== on) b.classList.toggle("live-pick", on);
+      const lock = !!(match && !on);
+      if (b.disabled !== lock) b.disabled = lock;
+      if (b.classList.contains("live-lock") !== lock) b.classList.toggle("live-lock", lock);
+    });
+    if (!match) {
+      scrolledPick = "";
+      return;
+    }
+    if (label === scrolledPick) return;
+    scrolledPick = label;
+    const scroller = match.closest(".choices-scroll");
+    if (!scroller) return;
+    const top = match.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+    scroller.scrollTop = Math.max(0, top - 16);
+  }
+
+  let continueSyncing = false;
+  async function syncContinueBtn() {
+    // Keep Continue in sync with watch_pending even when the coach dock is hidden.
+    const game = readGame();
+    if (!game || !fromTutorial) {
+      continueBtn.hidden = true;
+      return;
+    }
+    if (continueSyncing) return;
+    continueSyncing = true;
+    try {
+      const res = await fetch("/api/games/" + game.id);
+      if (!res.ok) return;
+      const view = await res.json();
+      continueBtn.hidden = !view.watch_pending;
+    } catch (e) {
+      return;
+    } finally {
+      continueSyncing = false;
+      placeChrome();
+    }
+  }
+
+  async function refresh(force) {
+    if (!wanted()) {
+      dock.hidden = true;
+      document.body.classList.remove("afwip-live");
+      hideCard();
+      fit();
+      await syncContinueBtn();
+      return;
+    }
+    const game = readGame();
+    if (!game) {
+      dock.hidden = true;
+      document.body.classList.remove("afwip-live");
+      hideCard();
+      fit();
+      continueBtn.hidden = true;
+      return;
+    }
+    if (game.id !== gameId) {
+      gameId = game.id;
+      seen = loadSeen(gameId);
+      lastRev = null;
+      lastSig = null;
+      note = null;
+      pacedFor = null;
+    }
+    if (pacedFor !== game.id) {
+      try {
+        const paced = await fetch("/api/games/" + game.id + "/pace", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ on: true }),
+        });
+        if (paced.ok) pacedFor = game.id;
+      } catch (e) { /* the next refresh tries again */ }
+    }
+    const roll = rolling();
+    const sig = viewSig(game);
+    if (!force && sig === lastSig) {
+      if (dieNote(note) && !roll) recoverDie(game);
+      return;
+    }
+    let data;
+    try {
+      const res = await fetch("/api/games/" + game.id + "/coach");
+      if (!res.ok) return;
+      data = await res.json();
+    } catch (e) { return; }
+    if (note && data.concept !== note.concept) {
+      seen.add(note.concept);
+      if (note.concept === "initiative" || note.concept === "cyber" || note.concept === "intel" || note.concept === "acquire" || note.concept === "shoot" || note.concept === "roll") {
+        seen.add("roll");
+      }
+      saveSeen();
+    }
+    if (!force && !roll && note && note.concept === data.concept && note.suggest === data.suggest && note.now === data.now) {
+      lastSig = sig;
+      if (dieNote(data)) recoverDie(game);
+      else hint.textContent = hintFor(data);
+      return;
+    }
+    lastRev = data.revision;
+    lastSig = sig;
+    note = data;
+    const first = lessonFirst(data);
+    dock.hidden = false;
+    document.body.classList.add("afwip-live");
+    render(data, first);
+  }
+
+  continueBtn.addEventListener("click", async () => {
+    const game = readGame();
+    if (!game || typeof window.__afwipApply !== "function") return;
+    continueBtn.disabled = true;
+    try {
+      const res = await fetch("/api/games/" + game.id + "/watch", { method: "POST" });
+      if (!res.ok) return;
+      const view = await res.json();
+      window.__afwipApply(view);
+      continueBtn.hidden = !view.watch_pending;
+      lastSig = null;
+      if (wanted()) refresh(true);
+      else placeChrome();
+    } catch (e) {
+      return;
+    } finally {
+      continueBtn.disabled = false;
+    }
+  });
+  nextBtn.addEventListener("click", () => {
+    if (!note) return;
+    seen.add(note.concept);
+    saveSeen();
+    render(note, false);
+  });
+  dock.querySelector("#live-hide").addEventListener("click", () => {
+    setWanted(false);
+    dock.hidden = true;
+    document.body.classList.remove("afwip-live");
+    hideCard();
+    fit();
+    markPick();
+  });
+
+  const offer = document.createElement("button");
+  offer.id = "live-offer";
+  offer.type = "button";
+  offer.textContent = "Unhide tutorial";
+  offer.hidden = true;
+  offer.addEventListener("click", () => {
+    setWanted(true);
+    offer.hidden = true;
+    refresh(true);
+  });
+  document.body.append(offer);
+
+  const manual = document.createElement("button");
+  manual.id = "game-manual";
+  manual.type = "button";
+  manual.textContent = "Game Manual";
+  manual.hidden = true;
+  const sheet = document.createElement("div");
+  sheet.id = "manual-sheet";
+  sheet.hidden = true;
+  sheet.innerHTML = '<iframe title="Game Manual" src="about:blank"></iframe>';
+  const frame = sheet.querySelector("iframe");
+  let manualLoaded = false;
+  function openManual() {
+    if (!manualLoaded) {
+      frame.src = "/tutorial.html?embed=1&v=search";
+      manualLoaded = true;
+    }
+    sheet.hidden = false;
+  }
+  function closeManual() {
+    sheet.hidden = true;
+  }
+  manual.addEventListener("click", openManual);
+  sheet.addEventListener("click", (event) => {
+    if (event.target === sheet) closeManual();
+  });
+  window.addEventListener("message", (event) => {
+    if (event.origin !== location.origin) return;
+    if (event.data && event.data.type === "afwip-manual-close") closeManual();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeManual();
+  });
+  document.body.append(manual, sheet);
+
+  const drafts = document.createElement("button");
+  drafts.id = "example-drafts";
+  drafts.type = "button";
+  drafts.textContent = "Example drafts";
+  drafts.title = "Standard posture: cyber, base strike, and air control";
+  drafts.hidden = true;
+  drafts.addEventListener("click", () => {
+    if (window.__afwipExampleDrafts) window.__afwipExampleDrafts();
+  });
+  document.body.append(drafts);
+
+  const back = document.createElement("button");
+  back.id = "game-back";
+  back.type = "button";
+  back.textContent = "Undo";
+  back.title = "Undo the last card";
+  back.hidden = true;
+  back.addEventListener("click", async () => {
+    const game = readGame();
+    if (!game || typeof window.__afwipApply !== "function") return;
+    back.disabled = true;
+    try {
+      const res = await fetch("/api/games/" + game.id + "/undo", { method: "POST" });
+      if (!res.ok) return;
+      window.__afwipApply(await res.json());
+    } catch (e) {
+      return;
+    } finally {
+      back.disabled = false;
+    }
+  });
+  document.body.append(back);
+
+  // Mirror the choice-panel prompt into the topbar (left of Undo) so the sticky
+  // header no longer covers the selection list while scrolling.
+  const gamePrompt = document.createElement("div");
+  gamePrompt.id = "game-prompt";
+  gamePrompt.hidden = true;
+  document.body.append(gamePrompt);
+
+  const detailsBtn = document.createElement("button");
+  detailsBtn.id = "game-details";
+  detailsBtn.type = "button";
+  detailsBtn.textContent = "Game Details";
+  detailsBtn.title = "Campaign, ATO, VP, cyber, mission, and posture";
+  detailsBtn.hidden = true;
+  detailsBtn.setAttribute("aria-expanded", "false");
+  document.body.append(detailsBtn);
+
+  const detailsPanel = document.createElement("div");
+  detailsPanel.id = "game-details-panel";
+  detailsPanel.hidden = true;
+  detailsPanel.innerHTML = [
+    '<div class="game-details-head">',
+    '  <h2>Game Details</h2>',
+    '  <button type="button" id="game-details-close" aria-label="Close">Close</button>',
+    '</div>',
+    '<div class="game-details-body" id="game-details-body"></div>',
+  ].join("");
+  document.body.append(detailsPanel);
+  const detailsBody = detailsPanel.querySelector("#game-details-body");
+  const detailsClose = detailsPanel.querySelector("#game-details-close");
+
+  function syncGamePrompt() {
+    const src = document.querySelector(".choices-scroll > .prompt");
+    if (!src) {
+      gamePrompt.hidden = true;
+      gamePrompt.replaceChildren();
+      gamePrompt.dataset.sig = "";
+      return;
+    }
+    const sig = src.innerHTML;
+    if (gamePrompt.dataset.sig !== sig) {
+      gamePrompt.innerHTML = sig;
+      gamePrompt.dataset.sig = sig;
+    }
+    gamePrompt.hidden = false;
+  }
+
+  function syncGameDetails() {
+    const src = document.querySelector(".left-col .status-strip, .status-strip");
+    if (!src) {
+      detailsBody.replaceChildren();
+      detailsBody.dataset.sig = "";
+      return;
+    }
+    const sig = src.innerHTML;
+    if (detailsBody.dataset.sig !== sig) {
+      const clone = src.cloneNode(true);
+      clone.classList.add("status-strip");
+      detailsBody.replaceChildren(clone);
+      detailsBody.dataset.sig = sig;
+    }
+  }
+
+  function placeDetailsPanel() {
+    if (detailsPanel.hidden || detailsBtn.hidden) return;
+    const r = detailsBtn.getBoundingClientRect();
+    const width = Math.min(520, Math.max(280, window.innerWidth - 24));
+    let left = r.left;
+    if (left + width > window.innerWidth - 12) left = window.innerWidth - width - 12;
+    if (left < 12) left = 12;
+    detailsPanel.style.left = Math.round(left) + "px";
+    detailsPanel.style.top = Math.round(r.bottom + 8) + "px";
+    detailsPanel.style.width = Math.round(width) + "px";
+  }
+
+  function setDetailsOpen(open) {
+    detailsPanel.hidden = !open;
+    detailsBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    detailsBtn.classList.toggle("is-open", open);
+    if (open) {
+      syncGameDetails();
+      placeDetailsPanel();
+    }
+  }
+
+  detailsBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    setDetailsOpen(detailsPanel.hidden);
+  });
+  detailsClose.addEventListener("click", (event) => {
+    event.stopPropagation();
+    setDetailsOpen(false);
+  });
+  document.addEventListener("click", (event) => {
+    if (detailsPanel.hidden) return;
+    if (detailsPanel.contains(event.target) || detailsBtn.contains(event.target)) return;
+    setDetailsOpen(false);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") setDetailsOpen(false);
+  });
+
+  function newGameButton() {
+    return [...document.querySelectorAll(".topbar button")].find(
+      (b) => (b.textContent || "").trim() === "New game"
+    );
+  }
+  function clearPin(el) {
+    el.style.top = "";
+    el.style.left = "";
+    el.style.right = "";
+    el.style.bottom = "";
+    el.style.height = "";
+    el.style.position = "";
+  }
+  function placeChrome() {
+    const btn = newGameButton();
+    if (!btn) {
+      manual.hidden = true;
+      drafts.hidden = true;
+      back.hidden = true;
+      gamePrompt.hidden = true;
+      detailsBtn.hidden = true;
+      setDetailsOpen(false);
+      continueBtn.hidden = true;
+      document.body.classList.remove("afwip-manual", "afwip-unhide");
+      return;
+    }
+    const bar = btn.closest(".topbar") || btn.parentElement;
+    manual.hidden = false;
+    drafts.hidden = false;
+    back.hidden = false;
+    detailsBtn.hidden = false;
+    syncGamePrompt();
+    syncGameDetails();
+    const row = [];
+    if (!continueBtn.hidden) row.push(continueBtn);
+    if (!offer.hidden) {
+      row.push(offer);
+      document.body.classList.add("afwip-unhide");
+    } else {
+      document.body.classList.remove("afwip-unhide");
+    }
+    if (!gamePrompt.hidden) row.push(gamePrompt);
+    row.push(detailsBtn, back, drafts, manual);
+    // Sit in the topbar beside New game so scrolling the board cannot drag them.
+    row.forEach((el) => {
+      clearPin(el);
+      if (el.parentElement !== bar || el.nextSibling !== btn) bar.insertBefore(el, btn);
+    });
+    document.body.classList.add("afwip-manual");
+    document.documentElement.style.setProperty("--manual-w", "0px");
+    placeDetailsPanel();
+  }
+  window.addEventListener("resize", () => {
+    placeChrome();
+    placeDetailsPanel();
+  });
+
+  function leaveTutorial() {
+    fromTutorial = false;
+    setWanted(false);
+    dock.hidden = true;
+    continueBtn.hidden = true;
+    document.body.classList.remove("afwip-live");
+    hideCard();
+    fit();
+    markPick();
+  }
+  function otherGame(btn) {
+    const label = (btn.textContent || "").replace(/\s+/g, " ").trim();
+    if (btn.classList.contains("start")) return true;
+    if (label === "Join Game" || label === "New game") return true;
+    return label.indexOf("Tournament Play") === 0;
+  }
+
+  setInterval(() => {
+    if (!fromTutorial && wanted()) leaveTutorial();
+    const game = readGame();
+    offer.hidden = !(game && fromTutorial && !wanted());
+    placeChrome();
+    syncViewerSide();
+    if (wanted()) refresh(false);
+    else if (fromTutorial && game && !continueBtn.hidden) syncContinueBtn();
+    markPick();
+  }, 400);
+
+  const board = document.getElementById("root");
+  if (board) {
+    new MutationObserver(() => markPick()).observe(board, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+  }
+
+  document.addEventListener("click", (event) => {
+    const choice = event.target.closest && event.target.closest(".choice-btn");
+    if (!choice) return;
+    const label = suggestedLabel();
+    if (!label) return;
+    const buttons = [...document.querySelectorAll(".choice-btn")];
+    const match = buttons.find((b) => (b.textContent || "").trim() === label);
+    if (!match || choice === match) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
+
+  document.addEventListener("click", (event) => {
+    const btn = event.target.closest && event.target.closest("button");
+    if (!btn) return;
+    const label = (btn.textContent || "").replace(/\s+/g, " ").trim();
+    if (btn.classList.contains("live-card") || label === "Tutorial") {
+      fromTutorial = true;
+      setWanted(true);
+      return;
+    }
+    if (otherGame(btn)) leaveTutorial();
+  }, true);
+})();

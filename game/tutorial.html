@@ -1,0 +1,1410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Game Manual — AFWI</title>
+<link rel="stylesheet" href="/tutorial/visuals.css">
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b26;
+    --panel-2: #1c2333;
+    --border: #2a3348;
+    --text: #dce3f0;
+    --dim: #8b96ad;
+    --us: #4cc3ff;
+    --prc: #ff5f56;
+    --gold: #ffd166;
+    --green: #4ade80;
+    --purple: #c084fc;
+    --font: "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    --mono: "SF Mono", ui-monospace, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 16px; line-height: 1.55; }
+  a { color: var(--us); }
+  button, select, input { font-family: var(--font); }
+  header.top {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; align-items: center; gap: 16px;
+    padding: 10px 18px; background: rgba(13, 17, 23, 0.94);
+    border-bottom: 1px solid var(--border); backdrop-filter: blur(8px);
+  }
+  header.top .brand { color: var(--gold); letter-spacing: 0.16em; font-weight: 700; font-size: 14px; }
+  header.top .brand span { color: var(--dim); letter-spacing: 0.04em; font-weight: 500; margin-left: 8px; }
+  .progress-wrap { flex: 1; max-width: 280px; }
+  .progress-label { font-size: 11px; color: var(--dim); letter-spacing: 0.08em; text-transform: uppercase; }
+  .bar { height: 6px; background: var(--panel-2); border-radius: 99px; overflow: hidden; margin-top: 4px; }
+  .bar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--us), var(--gold)); }
+  header.top .back {
+    color: var(--gold); text-decoration: none;
+    border: 1px solid var(--gold); border-radius: 8px; padding: 7px 12px; font-size: 13px; font-weight: 600;
+  }
+  header.top .back:hover { background: rgba(255, 209, 102, 0.15); }
+  .manual-search { position: relative; margin-left: auto; width: min(260px, 42vw); }
+  .manual-search input {
+    width: 100%; background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 13px;
+  }
+  .manual-search input:focus { outline: none; border-color: var(--gold); }
+  #manual-results {
+    position: absolute; top: calc(100% + 6px); right: 0; z-index: 8;
+    width: min(440px, 86vw); max-height: min(420px, 70vh); overflow: auto;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
+  }
+  #manual-results[hidden] { display: none; }
+  #manual-results .count {
+    margin: 0; padding: 8px 12px; color: var(--dim); font-size: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  #manual-results button {
+    display: block; width: 100%; text-align: left; background: transparent; color: var(--text);
+    border: 0; border-bottom: 1px solid var(--border); border-radius: 0;
+    padding: 8px 12px; cursor: pointer;
+  }
+  #manual-results button:hover, #manual-results button.on { background: #202a44; }
+  #manual-results .where { display: block; color: var(--gold); font-size: 12px; font-weight: 700; }
+  #manual-results .snip { display: block; color: var(--dim); font-size: 13px; margin-top: 2px; }
+  #manual-results mark, mark.manual-hit {
+    background: rgba(255, 209, 102, 0.35); color: inherit; border-radius: 2px; padding: 0 1px;
+  }
+  mark.manual-hit.current { background: var(--gold); color: #1a1404; }
+  nav.toc button.quiet { opacity: 0.35; }
+  nav.toc button.hit-page { box-shadow: inset 3px 0 0 var(--gold); }
+  .layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); min-height: calc(100vh - 54px); }
+  nav.toc {
+    border-right: 1px solid var(--border); padding: 14px 10px 40px;
+    position: sticky; top: 54px; height: calc(100vh - 54px); overflow: auto;
+    background: #10151e;
+  }
+  nav.toc .group { margin: 14px 8px 4px; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
+  nav.toc button {
+    display: block; width: 100%; text-align: left; background: transparent; color: var(--dim);
+    border: 0; border-radius: 8px; padding: 6px 8px; font-size: 13px; cursor: pointer;
+  }
+  nav.toc button:hover { background: var(--panel-2); color: var(--text); }
+  nav.toc button.on { background: #202a44; color: var(--gold); }
+  nav.toc button.seen { color: var(--text); }
+  main { padding: 28px 36px 80px; max-width: 860px; }
+  .kicker { color: var(--us); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 6px; }
+  h2 { margin: 0 0 12px; font-size: 28px; letter-spacing: -0.02em; }
+  h3 { margin: 22px 0 8px; font-size: 16px; color: var(--gold); }
+  p { margin: 0 0 12px; }
+  ul, ol { margin: 0 0 14px; padding-left: 1.2em; }
+  li { margin: 4px 0; }
+  .lead { font-size: 17px; color: #e8eef8; }
+  .callout, .example, .warn {
+    border: 1px solid var(--border); border-left-width: 3px; border-radius: 10px;
+    background: var(--panel); padding: 12px 14px; margin: 14px 0;
+  }
+  .callout { border-left-color: var(--gold); }
+  .example { border-left-color: var(--us); }
+  .warn { border-left-color: var(--prc); }
+  .callout strong, .example strong, .warn strong { color: var(--gold); }
+  .example strong { color: var(--us); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 10px 0 16px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--dim); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  code, .mono { font-family: var(--mono); font-size: 0.92em; }
+  .us { color: var(--us); font-weight: 700; }
+  .prc { color: var(--prc); font-weight: 700; }
+  .gold { color: var(--gold); }
+  .pager { display: flex; gap: 10px; align-items: center; margin-top: 28px; }
+  .pager button {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 16px; cursor: pointer; font-weight: 600;
+  }
+  .pager button.primary { border-color: var(--gold); color: var(--gold); background: rgba(255, 209, 102, 0.08); }
+  .pager button:hover:not(:disabled) { border-color: var(--gold); }
+  .pager button:disabled { opacity: 0.4; cursor: default; }
+  .pager .pos { color: var(--dim); font-size: 13px; margin-left: auto; }
+  details.check { margin-top: 18px; border: 1px solid var(--border); border-radius: 10px; background: #121820; padding: 10px 14px; }
+  details.check summary { cursor: pointer; color: var(--gold); font-weight: 700; }
+  details.check .q { margin: 10px 0 6px; }
+  details.check .a { color: #c5d0e4; margin: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+  .chips button, .token-pick button, .cyber button, .assign button, .turn button {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 10px; cursor: pointer;
+  }
+  .chips button:hover, .token-pick button:hover { border-color: var(--gold); }
+  .board {
+    display: grid; grid-template-columns: 148px 1fr 148px; gap: 8px; margin: 12px 0;
+  }
+  .cluster, .bands { display: flex; flex-direction: column; gap: 6px; }
+  .bands { flex-direction: row; }
+  .loc {
+    flex: 1; min-height: 64px; border-radius: 8px; border: 2px solid transparent;
+    background: #12283f; color: #dce3f0; cursor: pointer; font-size: 12px; font-weight: 700;
+    padding: 8px 4px;
+  }
+  .loc.rear { background: #131a28; }
+  .loc.us { background: #12324a; }
+  .loc.prc { background: #47201e; }
+  .loc.hot { outline: 2px solid var(--gold); }
+  .loc.origin { border-color: var(--us); }
+  .loc.dest { border-color: var(--gold); }
+  .readout { font-family: var(--mono); font-size: 13px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-height: 48px; }
+  .statcard { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-top: 10px; }
+  .statcard h4 { margin: 0 0 6px; }
+  .statgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+  .statgrid div { background: var(--panel-2); border-radius: 8px; padding: 8px; }
+  .statgrid .k { display: block; color: var(--dim); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .ladder { display: flex; gap: 8px; margin: 10px 0; }
+  .ladder button { flex: 1; min-height: 72px; }
+  .ladder button.on { border-color: var(--green); color: var(--green); }
+  .ladder button.win { border-color: var(--gold); color: var(--gold); }
+  .boxes { display: flex; gap: 6px; }
+  .pip { display: inline-block; width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--border); background: #0d1117; }
+  .pip.on { background: var(--prc); border-color: var(--prc); }
+  .tgt { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; margin-bottom: 6px; text-align: left; }
+  .tgt small { color: var(--dim); }
+  .filter { width: 100%; background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin: 8px 0 4px; }
+  .hidden-row { display: none; }
+  .token-hero { display: flex; gap: 14px; align-items: flex-start; }
+  .token-hero-img { width: 168px; height: auto; border-radius: 8px; background: #fff; cursor: zoom-in; flex: 0 0 auto; }
+  .row-card { width: 46px; border-radius: 4px; display: block; cursor: zoom-in; background: #fff; }
+  main { max-width: 1040px; }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+    nav.toc { position: relative; top: 0; height: auto; max-height: 220px; border-right: 0; border-bottom: 1px solid var(--border); }
+    main { padding: 20px 16px 64px; }
+    .board { grid-template-columns: 1fr; }
+    .statgrid { grid-template-columns: 1fr 1fr; }
+    .progress-wrap { display: none; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">AFWI <span>Game Manual</span></div>
+  <div class="progress-wrap">
+    <div class="progress-label" id="progress-label">Lesson 1</div>
+    <div class="bar"><i id="bar"></i></div>
+  </div>
+  <form class="manual-search" id="manual-search" role="search">
+    <input id="manual-query" type="search" placeholder="Search the manual" autocomplete="off" aria-label="Search the manual" aria-controls="manual-results">
+    <div id="manual-results" hidden></div>
+  </form>
+  <a class="back" href="/">Back to the game</a>
+</header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Lessons"></nav>
+<main id="main">
+
+<article class="lesson" data-group="Start" data-title="What this game is">
+  <p class="kicker">Start</p>
+  <h2>What this game is</h2>
+  <p class="lead">AFWI is a two-player air and multi-domain wargame. One side is the United States. The other is the People's Republic of China. You fight over a short map of range bands, with aircraft, ships, drones, air defense, and cards for cyber, space, electronic warfare, and special operations.</p>
+  <p>You do not move a big stack of pieces every turn. On your turn you do a little, on purpose: play at most one enabler card, and either launch a squadron or do one move, one acquire, and one shot. The fight is about timing, sensors, and what your hidden mission actually scores.</p>
+  <p>This tutorial teaches the rules the app enforces. When you finish, go back and press <strong>Tutorial</strong>. That game is Campaign 2: Attrition, Standard, two ATO cycles, and a draft of 6 enabler cards.</p>
+  <div class="callout"><strong>Two ways the game ends.</strong> After the last air tasking order, the higher victory-point total wins. Or, the moment either side reaches Cyber Rate 4, that side wins immediately.</div>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">What are the two ways a game can end?</p>
+    <p class="a">The side with more victory points after the last ATO wins. Reaching Cyber Rate 4 also wins on the spot, before points are compared.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Start" data-title="How a game is built">
+  <p class="kicker">Start</p>
+  <h2>How a game is built</h2>
+  <p>A game is a <strong>campaign</strong>. A campaign is one or more <strong>ATO cycles</strong> (air tasking orders). Campaign 1 is a single cycle. The tournament setup on the home screen is Campaign 2, which is two cycles. Campaign 3 runs five.</p>
+  <p>Each ATO cycle has the same spine:</p>
+  <ol>
+    <li><strong>Draft.</strong> Each side picks a posture, then squadron cards, then enabler cards. You draft your whole roster, then the other side drafts theirs.</li>
+    <li><strong>Bid for initiative.</strong> Each side rolls a D4. The winner gets intel advantage, chooses who goes first, and gets one try to raise their cyber rate.</li>
+    <li><strong>Play intel.</strong> Each side peeks at some of the opponent's hidden cards. At least one enemy card stays hidden.</li>
+    <li><strong>Turns.</strong> You alternate until <em>both</em> sides pass on back-to-back turns. Any real action breaks the pass streak.</li>
+    <li><strong>Cleanup.</strong> Score the end-of-cycle mission terms, land whatever is still flying, and clear the board for the next cycle.</li>
+  </ol>
+  <p>After the last cycle, hidden missions are revealed and the victory points are totaled.</p>
+  <div class="example"><strong>Why both passes matter.</strong> If you pass and the opponent then activates a squadron, the cycle continues. The cycle ends only when a pass is answered with another pass.</div>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">What ends an ATO cycle?</p>
+    <p class="a">Both players passing in succession. One pass is not enough. Taking any action, including playing only an enabler, resets the streak.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Start" data-title="The D4">
+  <p class="kicker">Start</p>
+  <h2>The D4</h2>
+  <p>Every roll in the game is a four-sided die. You need to meet or beat a number. A 4 is the best face. There is no six-sided die anywhere.</p>
+  <ul>
+    <li><strong>Normal.</strong> Roll one die.</li>
+    <li><strong>Advantage.</strong> Roll two dice and keep the higher.</li>
+    <li><strong>Disadvantage.</strong> Roll two dice and keep the lower.</li>
+  </ul>
+  <p>Advantage and disadvantage cancel one for one, and they do not stack. One of each is a normal roll. Two advantages and one disadvantage is still a single advantage.</p>
+  <p>Some sensors add a flat bonus after the die is chosen. An AEW adds +2. Most radars add +1. The bonus is added to the kept die.</p>
+  <div class="callout"><strong>Hit rolls and damage rolls are different.</strong> Advantage and disadvantage change the to-hit roll. The exploding damage die is a plain single die. Missile defense is the exception: it puts disadvantage on both the hit roll and the damage roll.</div>
+  <p>In the app, click <strong>Roll</strong> when it is your die. Advantage shows two faces. The face that counts is highlighted.</p>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">You have advantage and the defender's missile defense gives you disadvantage. How many dice do you roll?</p>
+    <p class="a">One. They cancel. You roll a normal single die for the hit. Missile defense still puts disadvantage on the damage roll if the attack has one.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="The board" data-title="The map and range">
+  <p class="kicker">The board</p>
+  <h2>The map and range</h2>
+  <p>The five center bands are the contested airspace, in a line from the US side to the PRC side. The US calls Band A "Band 1" and Band E "Band 5." The PRC counts the other way: Band E is their Band 1.</p>
+  <p>The US standoff, US airbase, and US contingency location all sit on Band A. They are one step from Band A. The PRC airbase and PRC standoff sit on Band E the same way. Range is the number of steps between two places. Adjacent places are range 1.</p>
+  <p>Click two locations. The second click is the destination.</p>
+  <div class="board" id="board"></div>
+  <div class="chips" id="board-presets"></div>
+  <div class="readout" id="board-read">Pick a start, then a destination.</div>
+  <div class="example"><strong>Why a bomber's range is 6.</strong> US standoff to the PRC airbase is exactly 6 steps: standoff, A, B, C, D, E, PRC airbase. A B-52 or H-6K with surface range 6 can bomb the enemy airbase from its own standoff.</div>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">An F-22 moves 2. It is on Band A. Which center bands can it reach this turn?</p>
+    <p class="a">Band B and Band C. Band B is 1 step away. Band C is 2. Band D is 3, so it is out of this move.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="The board" data-title="Bases, standoff, and the CL">
+  <p class="kicker">The board</p>
+  <h2>Bases, standoff, and the CL</h2>
+  <h3>Airbase</h3>
+  <p>Your airbase is home. Squadron cards deploy here face-down. It has <strong>three victory-point boxes</strong>. Each box the enemy fills is worth 1 VP, once, and the boxes last the whole campaign. Filling them does not shut the base down. Aircraft can still launch.</p>
+  <h3>Standoff</h3>
+  <p>Standoff is the deep rear. Only <strong>bombers and AEW</strong> may sit there. From standoff they shoot or sense across almost the whole map. An aircraft in standoff can be shot, and a hit on it lands on its squadron card.</p>
+  <h3>Contingency location</h3>
+  <p>Only the US has a contingency location. It is a dispersed site. You may deploy a squadron card there instead of the airbase. Activating a multi-aircraft squadron from the CL is risky: roll a D4, and only that many aircraft launch. The rest stay grounded on the card. A one-aircraft squadron (bomber, AEW, or ADA) always launches its single token. The CL has <strong>no VP boxes</strong>. A strike there can damage only one squadron card, and extra damage is lost.</p>
+  <div class="callout"><strong>Two ways to make the CL safe.</strong> The ACE posture, or the Flying Crew Chief enabler naming that squadron, launches every aircraft with no roll.</div>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">You put an F-16 squadron (4 aircraft) on the CL and roll a 2 when you activate it. What launches?</p>
+    <p class="a">Two F-16s. The other two stay grounded on the card, where a base strike can kill them with the card. An F-16 on the airbase would have launched all four with no roll.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Your forces" data-title="Three kinds of things">
+  <p class="kicker">Your forces</p>
+  <h2>Three kinds of things</h2>
+  <p>Keep these separate. The app shows all three, and they are not the same object.</p>
+  <ul>
+    <li><strong>Squadron cards</strong> are the units you draft and later flip face-up. A card has two hits. When you activate it, it creates tokens.</li>
+    <li><strong>Tokens</strong> are the pieces on the map. They move, acquire, and shoot. Fighters come four to a card. Recon drones come two. A bomber, AEW, or ADA card creates one token.</li>
+    <li><strong>Enabler cards</strong> are the rest of the hand: ships, missiles, cyber, space, electronic warfare, special operations, recovery, and base defense. Some create tokens. Many are a one-time effect.</li>
+  </ul>
+  <p>There is also a <strong>posture</strong> (how big a hand you draft) and a <strong>mission</strong> (how you score). Those are cards too, but you do not play them on a turn. You choose them during setup. The mission stays hidden until the game ends.</p>
+  <div class="example"><strong>The B-52 is the odd squadron.</strong> The US has two B-52 squadron cards. Each one creates a single B-52. Every other squadron type has one card.</div>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">You activate the 90th Fighter Squadron, the F-22 card. How many tokens appear?</p>
+    <p class="a">Four F-22 tokens, on Band A. A bomber card would have created one token, on Band A or in standoff.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Your forces" data-title="How to read a token">
+  <p class="kicker">Your forces</p>
+  <h2>How to read a token</h2>
+  <p>Every token has the same kinds of numbers. Ranges are in bands. Pick a unit and read it in plain language.</p>
+  <div class="chips token-pick" id="token-pick"></div>
+  <div class="statcard" id="token-card"></div>
+  <h3>What the columns mean</h3>
+  <ul>
+    <li><strong>Move</strong> is how many bands it may shift on the one move you get this turn. ADA moves 0.</li>
+    <li><strong>Acquire</strong> is how far it can try to identify a face-down enemy, plus any bonus, and whether it rolls twice.</li>
+    <li><strong>Air attack</strong> is range and the to-hit number against an acquired aircraft. A hit destroys that aircraft. There is no second damage roll.</li>
+    <li><strong>Surface attack</strong> is range and the to-hit number against ships, bases, standoff aircraft, and ADA. A mark of ✸ means you then roll a D4 for how many hits to assign. Otherwise a hit is 1 point.</li>
+    <li><strong>AV</strong> is the acquisition value, the roll an enemy needs to flip this token face-up. Higher is stealthier. F-22, F-35, and J-20 are AV 4.</li>
+    <li><strong>Winchester</strong> is the ammo rule. Most aircraft go out of ammo unless the natural attack roll is a 4.</li>
+  </ul>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">The F-16 air attack is "1 / 3" and the F-22 is "1 / 2". Which is the better air-to-air shot, and what does the F-16 have that the F-22 does not?</p>
+    <p class="a">The F-22 hits on a 2 or better, so it is the better air-to-air shooter, and it is stealthier (AV 4). The F-16 needs a 3 or better in the air, but it also has a surface attack. The F-22 cannot bomb a base or a ship.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Your forces" data-title="How the pieces work together">
+  <p class="kicker">Your forces</p>
+  <h2>How the pieces work together</h2>
+  <p>Nothing on the board is good at every job. A turn is usually one piece finding, another piece killing, and a card changing the odds.</p>
+  <ul>
+    <li><strong>AEW</strong> is the finder. Range 3, +2, and it rolls twice. It does not shoot. Put it in standoff or on your front band and spend acquires with it.</li>
+    <li><strong>Recon drones</strong> also roll twice to acquire, with a +1, and they never run out of ammo. They do not shoot.</li>
+    <li><strong>Stealth fighters</strong> (F-22, F-35, J-20) are hard to acquire because their AV is 4. F-22 and J-20 only fight other aircraft. The F-35 can also strike the surface.</li>
+    <li><strong>Older fighters</strong> (F-15, F-16, J-10, J-16, JH-7, J-15) are easier to see (AV 2) and come four to a card. Several of them can both dogfight and bomb.</li>
+    <li><strong>Bombers</strong> (B-52, H-6K) reach across the map and roll exploding damage into a base. They are slow (move 1) and valuable to kill.</li>
+    <li><strong>Attack drones</strong> bomb at a short range and a hard threshold (need a 3). They keep ammo on a 3 or 4, so they shoot more often than fighters.</li>
+    <li><strong>ADA</strong> does not move. It shoots aircraft at its air range, and any attack that crosses its weapon zone is at disadvantage. You do not kill ADA with an air-to-air shot. You acquire it, then hit it with a surface attack, or assign a base-strike hit onto it after it has been found.</li>
+    <li><strong>Ships</strong> move 1 band among the five center bands. They shoot air and surface a long way, the surface hit explodes, and they can spend an air salvo to defend a shot crossing their zone.</li>
+    <li><strong>EC-130</strong> does not shoot. A PRC attack launched from the band the EC-130 occupies is at disadvantage.</li>
+  </ul>
+  <div class="example"><strong>A normal US sequence.</strong> Activate AEW on one turn. Next turn, acquire a face-down token with the AEW, and if you already know a target, shoot it with a fighter in range. You cannot activate and shoot on the same turn.</div>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">You want to kill a face-down J-20 (AV 4) that is two bands away. Which of your pieces should attempt the acquire?</p>
+    <p class="a">The AEW, if it can see that far. It rolls twice and adds 2, so a modest die still clears 4. An F-16 with no bonus needs a raw 4, and only if the J-20 is inside acquire range 2.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Your forces" data-title="What the marks on a card mean">
+  <p class="kicker">Your forces</p>
+  <h2>What the marks on a card mean</h2>
+  <p>When you hold an enabler, four labels tell you how it lives in the campaign.</p>
+  <table>
+    <thead><tr><th>Mark</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>Squadron</td><td>Deploy face-down on a base. Activate later to create tokens. Two hits destroy the card and every token still on it.</td></tr>
+      <tr><td>1U, single-use</td><td>Play it once. It is gone for the rest of the campaign. If you never play it, it returns to your draft pool next cycle.</td></tr>
+      <tr><td>MU, multi-use</td><td>It comes back to your pool next cycle even if you played it.</td></tr>
+      <tr><td>Response</td><td>You may play it on the opponent's turn when its trigger happens: a kill, a base hit, a cyber card, a missile-defense declaration. The app offers it when the trigger is live.</td></tr>
+      <tr><td>Enduring</td><td>A bias for the rest of this ATO. Improved Munitions, electronic-warfare cards, and Badger Surge are this kind. They expire at cleanup.</td></tr>
+    </tbody>
+  </table>
+  <h3>Words on strike cards are not decoration</h3>
+  <ul>
+    <li>A card that says it hits the <strong>airbase</strong> (HIMARS, Tomahawk, Sea Dragons, PLANMC) fills only the three VP boxes. It does not damage squadron cards.</li>
+    <li>A card that says it hits the <strong>base</strong> (ballistic, cruise, hypersonic) spreads damage across squadron cards and VP boxes, the way a bomb run does.</li>
+    <li><strong>Unblockable</strong> cards ignore missile defense. PRC hypersonic, maritime strike cruise, Sea Dragons, and PLANMC are unblockable.</li>
+  </ul>
+  <div class="callout"><strong>A cancel undoes the card.</strong> Red Horse, Resilient Bases, Defensive Cyber, Counter Space, and the decoy cards do not just skip a line in the log. They reverse the damage, the kill, the acquisition, or the cyber gain.</div>
+  <p>The full list of every enabler is in the lesson <em>Enablers during play</em>. You can filter it by name.</p>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">You play a single-use cyber card this cycle. Can you draft it again next cycle? What about a multi-use one you also played?</p>
+    <p class="a">The single-use card is gone for the campaign. The multi-use card returns to your pool and can be drafted again.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Your forces" data-title="Postures">
+  <p class="kicker">Your forces</p>
+  <h2>Postures</h2>
+  <p>At the start of each ATO you pick a posture. It sets how many enabler cards and squadron cards you may draft, and it adds a rule. The numbers below are <strong>enablers / squadrons</strong>. Squadron count is a near-maximum: you may take one fewer than the number, and you may not take more. Enablers are a ceiling. You may take fewer.</p>
+  <p>Standard can be chosen every cycle. Every other posture can be used only once per game.</p>
+  <table>
+    <thead><tr><th>Side</th><th>Posture</th><th>En / Sq</th><th>What it changes</th></tr></thead>
+    <tbody>
+      <tr><td class="us">US</td><td>Standard</td><td>6 / 4</td><td>Always legal. Campaigns 1 and 2 allow only this.</td></tr>
+      <tr><td class="us">US</td><td>ACE</td><td>5 / 3</td><td>Strikes on US airbases are at disadvantage. A CL squadron launches every aircraft.</td></tr>
+      <tr><td class="us">US</td><td>Surge</td><td>7 / 6</td><td>A large force. You may not use the contingency location this campaign.</td></tr>
+      <tr><td class="us">US</td><td>Hedgehog</td><td>6 / 4</td><td>You start with a free ADA token.</td></tr>
+      <tr><td class="us">US</td><td>Standoff</td><td>6 / 3</td><td>Both B-52 squadron cards are free. They do not count against the three.</td></tr>
+      <tr><td class="prc">PRC</td><td>Standard</td><td>6 / 4</td><td>Always legal. Campaigns 1 and 2 allow only this.</td></tr>
+      <tr><td class="prc">PRC</td><td>PLAAF</td><td>5 / 6</td><td>Every enabler you draft must be a PLAAF card.</td></tr>
+      <tr><td class="prc">PRC</td><td>Joint Operations</td><td>9 / 3</td><td>Lots of enablers. Every squadron must be a flying unit.</td></tr>
+      <tr><td class="prc">PRC</td><td>ADA</td><td>6 / 4</td><td>Both ADA squadrons are free.</td></tr>
+      <tr><td class="prc">PRC</td><td>Standoff</td><td>6 / 3</td><td>The H-6K is free, and you get one extra PLARF enabler.</td></tr>
+    </tbody>
+  </table>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">It is ATO 2. You used ACE last cycle. Can you use ACE again? Can you use Standard?</p>
+    <p class="a">ACE is finished for this game. Standard is still legal, and it is legal every cycle.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Before the fight" data-title="Setup and the draft">
+  <p class="kicker">Before the fight</p>
+  <h2>Setup and the draft</h2>
+  <p>Each side has its <strong>own deck of 54 cards</strong>. You never draft from a shared pool. The opponent cannot take your F-22 by drafting faster. Order inside your own draft does not deny you a later card.</p>
+  <p>In the app, one side finishes posture, squadrons, placement, and enablers. Then the other side does the same. You do not alternate pick by pick.</p>
+  <ol>
+    <li>Choose a posture the campaign allows.</li>
+    <li>Choose squadron cards, at least one below the posture number and no more than the posture number. Place each face-down on the airbase, or for the US, on the CL.</li>
+    <li>Choose enabler cards, up to the posture number. They go to your hidden hand.</li>
+  </ol>
+  <p>You draft again at the start of every later ATO, from whatever you still own. A destroyed squadron stays destroyed. A spent single-use enabler stays spent. Surviving squadrons can be fielded again, but they come back missing any tokens they already lost.</p>
+  <div class="example"><strong>Campaign 1 is still a real draft.</strong> There are no enablers. You must include the US F-16 card or the PRC J-10 card. You still take a normal Standard roster around it: 3 or 4 squadrons, not that one card alone.</div>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">You pick the AEW squadron first. Can the opponent then take your F-22 so you cannot have both?</p>
+    <p class="a">No. Their deck is a different 54 cards. Your F-22 is still in your deck. Draft order only changes the order you click, not what you are allowed to own.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Before the fight" data-title="Missions">
+  <p class="kicker">Before the fight</p>
+  <h2>Missions</h2>
+  <p>Each side secretly picks a mission. It defines what is worth victory points. You do not show it until the game ends, so you are always guessing why the opponent is saving a bomber or ignoring a damaged base.</p>
+  <p>Campaigns 1 and 2 lock both sides to <strong>Attrition</strong>. Longer campaigns let you choose.</p>
+  <table>
+    <thead><tr><th>Mission</th><th>Who</th><th>What it pays</th></tr></thead>
+    <tbody>
+      <tr><td>Attrition</td><td>Both</td><td>+2 per enemy squadron card. +3 per ship, bomber, ADA, or AEW token. +1 per any other token.</td></tr>
+      <tr><td>Interdiction</td><td>Both</td><td>+4 per bomber, AEW, or squadron card. +3 per ship or ADA. +2 per any other token.</td></tr>
+      <tr><td>Economy of Force</td><td>Both</td><td>Each ATO: +2 per drafted unit you fielded and did not use. An unactivated squadron, or an unplayed token-generating enabler still in hand.</td></tr>
+      <tr><td>N-K Dominance</td><td>US</td><td>Each ATO: +3 times your cyber rate, plus +1 per EW, cyber, space, or SOF card you played.</td></tr>
+      <tr><td>Enforce Rule of Law</td><td>US</td><td>Each turn: +2 per squadron you activate, and +1 per token an enabler generates.</td></tr>
+      <tr><td>Three Dominances</td><td>PRC</td><td>Each ATO: +2 times cyber rate, +3 per naval unit on the board, +1 per naval enabler played, +1 per intact squadron.</td></tr>
+      <tr><td>Counter-Intervention</td><td>PRC</td><td>+3 per enemy air token destroyed on the ground. +1 per PLARF card played.</td></tr>
+    </tbody>
+  </table>
+  <p>Everyone, on top of the mission, scores <strong>+1 for each enemy airbase VP box</strong> they fill. Each box scores once.</p>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">You are on Attrition and you destroy an enemy AEW token and the squadron card it came from. How many points from those two?</p>
+    <p class="a">5. The AEW token is worth 3. The squadron card is worth 2. They are scored separately.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Before the fight" data-title="Initiative and intel">
+  <p class="kicker">Before the fight</p>
+  <h2>Initiative and intel</h2>
+  <p>After the draft, both sides roll a D4 to bid for initiative. You may sacrifice enabler cards for +1 each, except in the tournament campaign, where sacrifices are not allowed. High roll wins. Ties are handled by the app's roll.</p>
+  <p>The winner gets three things:</p>
+  <ul>
+    <li><strong>Intel advantage</strong> for the peek that follows, and the intel track flips to Advantage. It stays that way until a later cycle changes it.</li>
+    <li><strong>The choice of who takes the first turn</strong> of this ATO.</li>
+    <li><strong>One cyber raise attempt</strong>, a D4 against the access number for the next rate.</li>
+  </ul>
+  <p>Then both sides play intel. Each rolls to see some cards in the opponent's hand. The initiative winner rolls that peek at advantage. At least one enemy card always stays hidden, so you never get a complete read.</p>
+  <div class="callout"><strong>Campaign 2 does this only once.</strong> You bid in ATO 1, with no card sacrifices. ATO 2 initiative goes to the side that did <em>not</em> hold it in ATO 1. It alternates. You do not roll again.</div>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">You win the initiative roll. What do you receive besides going into the turn order?</p>
+    <p class="a">Intel advantage on the peek, and one attempt to raise your cyber rate. You also choose which side takes the first turn. That can be your opponent, if you want them to spend a squadron first.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Before the fight" data-title="Cyber">
+  <p class="kicker">Before the fight</p>
+  <h2>Cyber</h2>
+  <p>Each side starts at <strong>Cyber Rate 1</strong>. The track runs from 0 to 4. Raising it is a D4 against an access number that gets harder as you climb. Select your current rate.</p>
+  <div class="ladder" id="cyber"></div>
+  <div class="readout" id="cyber-read"></div>
+  <p>Cyber cards and the initiative bonus are how you get those rolls. Many effects scale with the rate you already have:</p>
+  <ul>
+    <li>Cyber Reconnaissance acquires enemy tokens equal to your rate.</li>
+    <li>Offensive Cyber removes enemy tokens equal to your rate, or forces that many enabler discards.</li>
+    <li>Joint Offensive Cyber removes tokens equal to twice your rate.</li>
+    <li>Cyber Counter-UAS destroys enemy drones equal to your rate.</li>
+  </ul>
+  <p>The defender can degrade your rate with Defensive Cyber (down 1) or Joint Defensive Cyber (down 2), or cancel the card outright as a response.</p>
+  <div class="warn"><strong>Rate 4 wins the game immediately.</strong> It does not wait for the end of the ATO, and victory points are not compared. If a mission pays you for a high cyber rate, rate 3 is the highest you can sit on and still be playing for points.</div>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">You are at rate 2. What must you roll to reach 3, and what happens if you later reach 4?</p>
+    <p class="a">You need a 4 on the D4 to go from 2 to 3. Reaching 4 ends the game. You win.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="The turn" data-title="Your turn">
+  <p class="kicker">The turn</p>
+  <h2>Your turn</h2>
+  <p>On your turn you may do both of these, in either order, or you may pass.</p>
+  <ol>
+    <li>Play <strong>one</strong> enabler from your hand. Responses are separate: those fire on the opponent's turn when their trigger happens.</li>
+    <li>Then exactly one of: <strong>activate a squadron</strong>, or a <strong>move-acquire-shoot</strong> action.</li>
+  </ol>
+  <p>Activating a squadron ends the turn. You cannot launch aircraft and also move or shoot with pieces already in the air. Move, acquire, and shoot may come in any order. Each may be used once. You may skip any of them. Each one may use a different token.</p>
+  <div id="turn-builder"></div>
+  <div class="readout" id="turn-read"></div>
+  <div class="callout"><strong>The button says "Pass / end turn."</strong> That ends your turn, not the cycle. The cycle ends only when the opponent passes too. Playing an enabler and nothing else still counts as doing something, so the cycle continues.</div>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">Can you shoot with a fighter, then move that fighter, then acquire with your AEW, and also activate a second squadron?</p>
+    <p class="a">The shoot, the move, and the acquire are legal together, in that order, because each action is used once and they may use different tokens. Activating a squadron on the same turn is not legal. Launching is instead of move-acquire-shoot, not in addition to it.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="The turn" data-title="Activating a squadron">
+  <p class="kicker">The turn</p>
+  <h2>Activating a squadron</h2>
+  <p>Activation flips a face-down squadron card face-up and creates its tokens. Where they appear depends on the type:</p>
+  <ul>
+    <li><strong>Fighters</strong> appear on your front band. US Band A. PRC Band E.</li>
+    <li><strong>Drones</strong> may appear on any of the five center bands.</li>
+    <li><strong>Bombers and AEW</strong> appear on the front band or in your standoff.</li>
+    <li><strong>ADA</strong> appears on the airbase or CL where that card was deployed.</li>
+    <li><strong>Carrier J-15s</strong>, from the Shandong enabler, may appear on any band.</li>
+  </ul>
+  <p>A squadron only re-fields what it has left. If two of four F-22s were destroyed last cycle, the card launches two, not four. Destroyed tokens do not grow back unless a specific enabler says so.</p>
+  <h3>Risky launches</h3>
+  <ul>
+    <li><strong>From the US CL,</strong> a multi-token squadron rolls a D4 and launches only that many. ACE or Flying Crew Chief skips the roll.</li>
+    <li><strong>A recovered squadron</strong> brought back by Rapid Resupply is marked recovered. When you activate it, roll a D4. A 1 breaks every aircraft on the ground and hands them to the enemy. A 2, 3, or 4 launches normally.</li>
+    <li><strong>A Winchester fighter relaunch</strong> is its own turn, covered in the Winchester lesson. It also ends the turn.</li>
+  </ul>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">Your B-52 card lost nothing, and you activate it. Where may the token appear?</p>
+    <p class="a">On your front band, or in your standoff. One token. Activating it spends the turn, so the B-52 cannot bomb until a later turn.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="The turn" data-title="Movement">
+  <p class="kicker">The turn</p>
+  <h2>Movement</h2>
+  <p>You may move <strong>one</strong> token per turn, up to its move range in steps on the map. Fighters move 2. Bombers, AEW, drones, the EC-130, and ships move 1. ADA moves 0.</p>
+  <ul>
+    <li>A grounded token cannot take a voluntary move. A Winchester token cannot either. Winchester aircraft go home at the <em>start</em> of your turn, and that trip is free.</li>
+    <li>Ships move among the five center bands only. They do not enter a base or a standoff.</li>
+    <li>Only bombers and AEW may move into standoff.</li>
+    <li>You cannot voluntarily move onto the contingency location. That box is for deployment and for Winchester recovery.</li>
+    <li>Moving one of your aircraft back onto its own base lands it for the rest of the ATO. It re-arms next cycle. If that squadron card is already destroyed, the token is lost.</li>
+    <li>Placing a token with an enabler is not your move action. It is part of the card.</li>
+  </ul>
+  <div class="example"><strong>A fighter's real reach.</strong> An F-22 on Band A can step to Band B or Band C. It can also step back toward its airbase. It cannot enter PRC standoff in one move, and it cannot carry a second fighter along. The second fighter waits for another turn.</div>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">Your attack drone is Winchester. Can you spend your move to send it home?</p>
+    <p class="a">You do not need to. At the start of your turn it returns to its squadron card for free, if that card is still alive. A voluntary move is for a token that still has ammo and is not grounded.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Combat" data-title="Acquire and fog of war">
+  <p class="kicker">Combat</p>
+  <h2>Acquire and fog of war</h2>
+  <p>Enemy tokens enter the board face-down. You can see that something is there, and you can see the number you must roll to identify it. You cannot see the type until you acquire it. Your own tokens are always face-up to you.</p>
+  <p>To acquire, pick one of your tokens that has an acquire range, pick one enemy token inside that range, and roll. Success is the kept die, plus any acquire bonus, greater than or equal to the target's AV. On a success the token flips face-up for the rest of the ATO.</p>
+  <ul>
+    <li>AEW and recon drones roll <strong>twice</strong> on one attempt and take a success if either die works. AEW also has +2 and range 3.</li>
+    <li>Grounded aircraft cannot be acquired. They die with their squadron card.</li>
+    <li>ADA on a base <em>can</em> be acquired. Until it is, a base strike cannot assign damage to it.</li>
+    <li>You must acquire a ship, a standoff aircraft, or an ADA before a surface shot at that token. A strike on the base itself does not need a prior acquire.</li>
+    <li>Some cards acquire directly: cyber reconnaissance, space reconnaissance, SOF reconnaissance, ground-based radar.</li>
+  </ul>
+  <div class="example"><strong>Face-down in the app.</strong> A legal acquire is labeled with a question mark, an id, and the AV, such as <span class="mono">Acquire ?#12 (av 4)</span>. The name stays hidden so the choice list does not leak it. After a hit, the log tells you what it was.</div>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">A face-down token on the enemy airbase is a grounded fighter. Can you acquire it and shoot it in the air?</p>
+    <p class="a">No. Grounded aircraft cannot be acquired, and they cannot be shot as aircraft. You damage the squadron card with a base strike. If the card takes 2 hits, the grounded fighters die with it.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Combat" data-title="Shooting">
+  <p class="kicker">Combat</p>
+  <h2>Shooting</h2>
+  <p>You get <strong>one shot per turn</strong>. There are three kinds.</p>
+  <h3>Air-to-air</h3>
+  <p>An air token with an air attack fires at an <strong>acquired</strong> enemy aircraft in range, including one loitering in standoff. Standoff is one step past the front band, so a range-1 fighter must be in that front band to shoot into standoff. Roll greater than or equal to your air threshold. A hit destroys the token. There is no damage die. You cannot shoot a ship or an ADA this way.</p>
+  <h3>Surface against a token</h3>
+  <p>A token with a surface attack fires at an <strong>acquired</strong> ship, standoff aircraft, or ADA in range. A ship or an ADA dies in one hit. A hit on a standoff aircraft is applied to its squadron card: the card has 2 hits, and destroying the card destroys what is on it.</p>
+  <h3>Base strike</h3>
+  <p>Fire at an enemy airbase or CL in surface range. You do not acquire the base first. On a hit, an exploding attacker (B-52, H-6K, the missile ships, the flotilla) rolls a D4 for damage. Everyone else deals 1. You then assign those hits. The next lesson is that assignment.</p>
+  <div class="callout"><strong>Ammo cares about the hit die only.</strong> The damage die never makes you Winchester. If Forward Observers makes the strike an auto-hit, there is no hit die, and that counts as a clean 4: you do not go Winchester, and a ship spends no salvo.</div>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">Your F-35 hits an acquired J-16 in air-to-air range. Do you roll a second die for damage?</p>
+    <p class="a">No. Air-to-air is a single-hit kill. The to-hit roll is the whole attack. A second die appears on exploding surface and base attacks.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Combat" data-title="Damage">
+  <p class="kicker">Combat</p>
+  <h2>Damage</h2>
+  <p>Different targets soak hits differently.</p>
+  <table>
+    <thead><tr><th>Target</th><th>Hits to destroy</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Aircraft token, in the air</td><td>1</td><td>Air-to-air, or a surface shot if it is in standoff and acquired.</td></tr>
+      <tr><td>Ship</td><td>1</td><td>Must be acquired. Surface attack. Exploding damage does not mean extra hits. One hit sinks it.</td></tr>
+      <tr><td>ADA</td><td>1</td><td>Acquire it, then a surface shot. Or, once acquired, a base strike may spend a hit on it. An unacquired ADA is invisible to the strike.</td></tr>
+      <tr><td>Squadron card</td><td>2</td><td>Base strikes and standoff hits land here. Destroying the card destroys tokens still attached to it. One point of damage resets next cycle if the card survives. A destroyed card is gone for the game.</td></tr>
+      <tr><td>Airbase VP boxes</td><td>3 boxes, 1 each</td><td>Each filled box is 1 VP, once, and it stays filled all game. The base keeps working.</td></tr>
+      <tr><td>Infantry Battalion</td><td>2</td><td>Shields squadrons on that base from SOF raids. You score nothing for hurting it.</td></tr>
+      <tr><td>Contingency location</td><td>one card</td><td>No VP boxes. Only one squadron card can be hit per strike. Extra damage is lost.</td></tr>
+    </tbody>
+  </table>
+  <p>Try a 3-point exploding hit on a PRC airbase. Click a target to spend one point. A squadron card takes two points. Each VP box takes one.</p>
+  <div id="damage-toy"></div>
+  <div class="readout" id="damage-read"></div>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">You deal 1 damage to an enemy squadron card this cycle and do not finish it. What is that card's damage at the start of the next ATO?</p>
+    <p class="a">Zero. Partial card damage resets every cycle. Only a second hit, which destroys the card, is permanent. Airbase VP boxes do not reset.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Combat" data-title="Winchester">
+  <p class="kicker">Combat</p>
+  <h2>Winchester</h2>
+  <p>Winchester means out of ammunition. It is decided by the <strong>natural</strong> to-hit roll, before bonuses, and never by the damage roll.</p>
+  <ul>
+    <li>Most aircraft go Winchester on a 1, 2, or 3. A natural 4 means they still have weapons.</li>
+    <li>Attack drones go Winchester on a 1 or 2. A 3 or 4 keeps them armed.</li>
+    <li>ADA, AEW, recon drones, and the EC-130 never go Winchester.</li>
+    <li>Ships use salvos instead. They have 4 air salvos and 1 surface salvo. A natural 4 spends nothing. The ship is Winchester only when both magazines are empty. It can provide missile defense only while an air salvo remains.</li>
+  </ul>
+  <p>At the <strong>start of your turn</strong>, your Winchester aircraft return to their squadron card. They are grounded and re-arm next cycle. The flight home is free. If the card was destroyed, they are surrendered to the enemy. Winchester ships leave the board. They are out of play, and they are not counted as destroyed.</p>
+  <h3>Fighter relaunch</h3>
+  <p>When a fighter comes home Winchester and the squadron card is still alive, you may spend a later turn to relaunch it. Roll a D4. A 1 breaks it on the ground and gives it to the enemy. A 2, 3, or 4 sends it back out as a fresh sortie on your front band, re-armed, and the enemy must acquire it again. A relaunch ends the turn, the way an activation does.</p>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">Your B-52 rolls a natural 2 to hit an airbase, then a 4 on the exploding damage die. Is it Winchester?</p>
+    <p class="a">Yes. The hit roll was a 2, which is under 4. The damage die does not put the ammo back. It flies home at the start of your next turn.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Combat" data-title="Missile defense">
+  <p class="kicker">Combat</p>
+  <h2>Missile defense</h2>
+  <p>If an attack's path crosses an air-defense weapon zone, the defender can make that attack harder.</p>
+  <ul>
+    <li><strong>ADA</strong> imposes disadvantage automatically. The defender does not spend an action and does not have to announce it.</li>
+    <li>A <strong>ship</strong> may be declared as the defender if the shot crosses its zone and it still has an air salvo. Declaring spends that salvo. It has to be declared <em>before</em> the attacker rolls. The app asks when it is time.</li>
+    <li>This covers air-to-air shots as well as surface and base strikes.</li>
+    <li>The disadvantage applies to the hit roll and, when there is one, the damage roll.</li>
+  </ul>
+  <p>Some attacks ignore it. PRC hypersonic missiles, the maritime strike cruise missile, Sea Dragons, and PLANMC are unblockable. Air Launched Decoy and Decoy Warheads can cancel a missile-defense attempt that was declared.</p>
+  <div class="example"><strong>A long PRC ADA.</strong> Long-range ADA shoots air out to 3 bands and defends shots that cross its zone. It is the piece that makes a casual bomb run expensive. Kill it with a surface attack after you acquire it, or spend a base-strike point on it once it is face-up.</div>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">Your shot crosses an enemy ship's zone. Does the disadvantage happen by itself?</p>
+    <p class="a">No. ADA is automatic. A ship must be declared, and the declaration spends one air salvo, before you roll. If the ship has no air salvos left, it cannot defend.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Combat" data-title="Enablers during play">
+  <p class="kicker">Combat</p>
+  <h2>Enablers during play</h2>
+  <p>You may play one enabler on your own turn, before or after the activate-or-shoot half. Responses appear when their trigger fires, including on the opponent's turn. An enabler strike rolls a plain damage die. Advantage on that card changes the gate roll, not the damage.</p>
+  <p>Think of the hand in families:</p>
+  <ul>
+    <li><strong>Find.</strong> SOF, space, cyber, and radar cards acquire tokens without flying a sensor into range.</li>
+    <li><strong>Remove.</strong> Offensive cyber deletes tokens or forces discards. Counter-UAS deletes drones. Submarines and the Marine Littoral Regiment kill a ship.</li>
+    <li><strong>Strike the base.</strong> HIMARS and Tomahawk fill VP boxes. PRC ballistic, cruise, and hypersonic missiles hurt cards and boxes. Sea Dragons and PLANMC fill VP boxes and cannot be intercepted.</li>
+    <li><strong>Put a unit on the map.</strong> Ships, the flotilla, the EC-130, land-based ADA, the Shandong's J-15s.</li>
+    <li><strong>Bias the whole cycle.</strong> Improved Munitions, offensive and defensive EW, EW spoofing, space-based EW, Badger Surge, munitions upgrade.</li>
+    <li><strong>Answer a disaster.</strong> Personnel Recovery and Quick-Turn bring a just-lost aircraft back, face-down. Red Horse and Resilient Bases cancel a base attack. Reserves regenerates a wiped squadron. Defensive cyber and counter-space cancel the matching enemy card.</li>
+    <li><strong>Stretch the force.</strong> Aerial Refueling adds a squadron beyond the posture. Rapid Resupply returns a discarded card. Flying Crew Chief makes one CL squadron launch at full strength.</li>
+  </ul>
+  <p>Recovered aircraft, a regenerated squadron, a Rapid Resupply revival, and a fighter relaunch all come back <strong>face-down</strong>. The enemy acquires them again. A cancelled shot is different: it is as if the shot never happened, so an earlier acquisition stays.</p>
+  <label for="card-filter">Search the card list</label>
+  <input id="card-filter" class="filter" type="search" placeholder="Try cyber, bomber, HIMARS, response…">
+  <div id="card-tables"></div>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">The opponent just destroyed your F-35 in the air, and you hold Personnel Recovery. When can you play it, and how does the F-35 come back?</p>
+    <p class="a">As a response to that loss, which can be on their turn. It returns to your Band 1, face-down, and it is not scored as destroyed. They have to acquire it again.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Winning" data-title="Keeping score">
+  <p class="kicker">Winning</p>
+  <h2>Keeping score</h2>
+  <p>Victory points come from your mission, plus one point per enemy airbase box you have filled. The app keeps the running total. You will not see the opponent's mission math until the end, except for points that are public, such as a base box.</p>
+  <p>When points are awarded depends on the mission:</p>
+  <ul>
+    <li><strong>Attrition, Interdiction, and Counter-Intervention</strong> read the destruction log. Kills count when they happen, and the mission table says how much each kind is worth.</li>
+    <li><strong>Economy of Force, N-K Dominance, and Three Dominances</strong> score at the end of each ATO, from what you fielded, played, or still have on the tracks.</li>
+    <li><strong>Enforce Rule of Law</strong> scores on the turn you activate a squadron or an enabler creates a token.</li>
+    <li><strong>Airbase boxes</strong> score immediately, once each, for whoever filled them.</li>
+  </ul>
+  <div class="example"><strong>An Attrition tally.</strong> You kill a J-10 token (+1), sink a ship (+3), and destroy the J-20 squadron card (+2). You have also filled one PRC airbase box (+1). That is 7 VP from those events. The J-20's individual lost tokens, if you killed them in the air, would add +1 each on top of the card.</div>
+  <p>Campaign 4 adds +1 per enemy squadron wiped out entirely in the air, up to +2 per ATO. Campaign 5 adds +1 per intact squadron card at the very end.</p>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">You filled two airbase VP boxes in ATO 1. Do they score again in ATO 2?</p>
+    <p class="a">No. Each box scores once, and the damage stays. You would need the third box for another point.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Winning" data-title="How you win">
+  <p class="kicker">Winning</p>
+  <h2>How you win</h2>
+  <p>At the end of the last ATO, missions are revealed and the totals are compared. The higher total wins.</p>
+  <p>That comparison never happens if someone reaches <strong>Cyber Rate 4</strong>. The game stops. That side wins, whatever the VP track says.</p>
+  <p>There is no third sudden-death for destroying every squadron or filling every base box. A wrecked airbase still functions. A side with no aircraft left can still be ahead on points, or can still be holding a cyber win.</p>
+  <div class="callout"><strong>Play the mission you actually hold.</strong> On Economy of Force, an unused squadron is worth 2 at the end of the cycle. Activating it because it "should fight" can be the point you needed. On Attrition, that same quiet card is worth nothing until it kills something, or until the enemy kills the card.</div>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">You are behind 14 to 6 on victory points, and your cyber raise just moved you from 3 to 4. Who wins?</p>
+    <p class="a">You do. Cyber Rate 4 ends the game immediately. The point totals are not compared.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Winning" data-title="Between ATO cycles">
+  <p class="kicker">Winning</p>
+  <h2>Between ATO cycles</h2>
+  <p>When both sides have passed, the cycle ends in a fixed order. Aircraft still in the air land on their cards. Landing on a destroyed card loses the token. End-of-ATO mission points are scored. Then the board clears.</p>
+  <p>What carries into the next cycle:</p>
+  <ul>
+    <li>Destroyed tokens stay destroyed, and the squadron re-fields fewer.</li>
+    <li>A destroyed squadron card stays out and has already scored for the enemy.</li>
+    <li>One point of damage on a card that survived is erased.</li>
+    <li>Airbase VP boxes stay filled.</li>
+    <li>Cyber rate, intel, and victory points stay where they are.</li>
+    <li>You draft posture, squadrons, and enablers again from what you have left.</li>
+  </ul>
+  <p>Played single-use enablers are gone. Unplayed single-use enablers, and every multi-use enabler, go back to your pool. Enduring biases such as electronic warfare expire. They were for that cycle only.</p>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">Your cyber rate is 3 and you have 8 VP at cleanup. What are they at the start of the next ATO, before the new initiative roll?</p>
+    <p class="a">Still 3, and still 8. Both persist. The initiative winner may then get another chance to roll the rate upward.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Winning" data-title="The five campaigns">
+  <p class="kicker">Winning</p>
+  <h2>The five campaigns</h2>
+  <table>
+    <thead><tr><th>#</th><th>Name</th><th>ATOs</th><th>What is special</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Meeting Engagement</td><td>1</td><td>The introduction. No enablers. Attrition and Standard only. Your draft must include the US F-16 or the PRC J-10, plus the rest of a normal squadron draft.</td></tr>
+      <tr><td>2</td><td>Tournament</td><td>2</td><td>Attrition and Standard only. Bid for initiative only in ATO 1, with no card sacrifices. ATO 2 initiative flips to the side that did not have it. This is the Tournament Play button.</td></tr>
+      <tr><td>3</td><td>Prolonged Combat</td><td>5</td><td>The full game. Every posture, mission, and enabler is available.</td></tr>
+      <tr><td>4</td><td>The World Watches</td><td>2</td><td>No long-range missiles, no SOF, no long-range bombers. +1 VP per enemy squadron wiped out in the air, max +2 per ATO. ATO 2 initiative goes to whoever lost more of their own tokens in ATO 1.</td></tr>
+      <tr><td>5</td><td>Reserves</td><td>2</td><td>No 5th-generation fighters, no bombers, no PRC long-range ADA. +1 VP per intact squadron card at the end.</td></tr>
+    </tbody>
+  </table>
+  <p>The home screen's <strong>Tournament Play</strong> button starts Campaign 2 as two humans on one device, with a 2-minute turn clock and a 48-minute clock for the whole ATO. You can turn those clocks off in a custom game.</p>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">You want to learn movement and shooting without a hand of cyber and missile cards. Which campaign?</p>
+    <p class="a">Campaign 1, Meeting Engagement. It is one ATO, Attrition, Standard, no enablers, and it forces a familiar fighter into the draft so both sides have something straightforward in the air.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Play" data-title="Using this app">
+  <p class="kicker">Play</p>
+  <h2>Using this app</h2>
+  <p>The board is the map. Your legal choices are the buttons on the side. You never type a move. If a button is missing, the action is illegal right now: out of range, already used this turn, or hidden by fog.</p>
+  <ul>
+    <li><strong>Roll</strong> appears when a die is yours. Click it. The counted face stays bright.</li>
+    <li>The <strong>event log</strong> is the history. Dice, kills, and victory-point changes are marked.</li>
+    <li><strong>Copy state for AI</strong> copies a text picture of what you are allowed to know, plus numbered legal actions. Paste it into a coach if you want advice. It does not reveal unacquired enemy types.</li>
+    <li>In <strong>two players, one device</strong>, the app hides the hand between turns. Hand the device over only after the handoff screen.</li>
+    <li>In <strong>two players, network</strong>, each device sees only its own side. The host shares the game code.</li>
+    <li><strong>Practice vs Agent</strong> lets you play one side. Easy, Medium, and Best are the trained opponents. Random is useful while you are still learning the buttons. GPT needs your own API key and is optional.</li>
+  </ul>
+  <h3>A first game</h3>
+  <ol>
+    <li>Go back to the menu. Choose <strong>Practice vs Agent</strong>.</li>
+    <li>Campaign <strong>1</strong>. Play as <strong>US</strong>. Agent <strong>AI — Easy</strong> or Random. Turn time and ATO time <strong>Off</strong>. Start.</li>
+    <li>Posture will be Standard. Draft 3 or 4 squadrons and include the <strong>F-16</strong>. A useful learning set is F-16, F-15E (it can bomb), AEW (it can find), and F-22 (it is hard to see).</li>
+    <li>Place them on the airbase. There is no enabler step.</li>
+    <li>Roll initiative. If you win, take the first turn or give it away.</li>
+    <li>Activate the AEW into standoff, or activate a fighter squadron onto Band A. That spends the turn.</li>
+    <li>On later turns, acquire with the AEW, then shoot with a fighter that is in range. Move a fighter forward when the target is one band too far.</li>
+    <li>When you have nothing you want to do, pass. If the opponent also passes, the cycle ends and you see the score.</li>
+  </ol>
+  <div class="callout"><strong>Read the button, then the board.</strong> The choice text names the token id and the destination. Match the id to the piece on the map before you click. A face-down target stays a question mark until the acquire succeeds.</div>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">You already moved a fighter this turn, and the activate buttons disappeared. Can you still launch a squadron before the turn ends?</p>
+    <p class="a">No. The move started move-acquire-shoot, and activation is no longer offered. You can still acquire and shoot if you have not used those. Launch the other squadron on a later turn. At the start of a fresh turn, activate and the maneuver buttons are both listed until you pick one branch.</p>
+  </details>
+</article>
+
+<article class="lesson" data-group="Play" data-title="Easy to miss">
+  <p class="kicker">Play</p>
+  <h2>Easy to miss</h2>
+  <p>These are the rulings that change a plan. They are all in force in the app.</p>
+  <ul>
+    <li>Move, acquire, and shoot can happen in any order, once each, with different tokens.</li>
+    <li>Decks are separate. You draft your whole roster, then the opponent drafts theirs.</li>
+    <li>Ships move, one band at a time, on the five center bands.</li>
+    <li>Air-to-air does not kill ADA. A surface shot does, after you acquire it. A base strike can also hit an ADA that is already acquired.</li>
+    <li>A base strike does not pick off grounded fighters one by one. Those hits go on the squadron card. Two hits destroy the card and the aircraft on it.</li>
+    <li>Standoff aircraft can be shot in the air if acquired and in range. A range-1 fighter has to be in the adjacent front band.</li>
+    <li>Partial damage on a squadron card resets next cycle. Destroyed cards and filled VP boxes do not.</li>
+    <li>VP boxes do not close the airbase.</li>
+    <li>The CL has no VP boxes, and one strike there damages only one card.</li>
+    <li>Advantage and disadvantage cancel. They do not stack. Only missile defense puts disadvantage on the damage die.</li>
+    <li>A natural 4 on the attack roll keeps most aircraft armed. The damage roll cannot save them or disarm them.</li>
+    <li>An auto-hit from Forward Observers does not cause Winchester.</li>
+    <li>Coming back from recovery, reserves, or a relaunch is face-down. A cancel restores the old state, including an old acquisition.</li>
+    <li>Both players must pass in a row to end the ATO.</li>
+    <li>Cyber Rate 4 wins at once. You start at rate 1, not 0.</li>
+  </ul>
+  <p>That is the whole game. The next useful hour is the Tutorial against Easy, with the clocks off. It is Campaign 2, so the draft includes the 6 enabler cards and the fight runs two ATO cycles.</p>
+  <details class="check"><summary>Check yourself</summary>
+    <p class="q">Name the one track that can end the game before the victory points are compared.</p>
+    <p class="a">Cyber rate. At 4, the game is over.</p>
+  </details>
+</article>
+
+<div class="pager">
+  <button type="button" id="prev">Back</button>
+  <button type="button" id="next" class="primary">Next</button>
+  <span class="pos" id="pos"></span>
+</div>
+</main>
+</div>
+<script>
+const ADJ = {
+  US_STANDOFF: ["BAND_A", "US_AIRBASE", "US_CL"],
+  US_AIRBASE: ["BAND_A", "US_STANDOFF"],
+  US_CL: ["BAND_A", "US_STANDOFF"],
+  BAND_A: ["US_AIRBASE", "US_CL", "US_STANDOFF", "BAND_B"],
+  BAND_B: ["BAND_A", "BAND_C"],
+  BAND_C: ["BAND_B", "BAND_D"],
+  BAND_D: ["BAND_C", "BAND_E"],
+  BAND_E: ["BAND_D", "PRC_AIRBASE", "PRC_STANDOFF"],
+  PRC_AIRBASE: ["BAND_E", "PRC_STANDOFF"],
+  PRC_STANDOFF: ["BAND_E", "PRC_AIRBASE"]
+};
+const LOC_LABEL = {
+  US_STANDOFF: "US standoff",
+  US_AIRBASE: "US airbase",
+  US_CL: "US CL",
+  BAND_A: "Band A",
+  BAND_B: "Band B",
+  BAND_C: "Band C",
+  BAND_D: "Band D",
+  BAND_E: "Band E",
+  PRC_AIRBASE: "PRC airbase",
+  PRC_STANDOFF: "PRC standoff"
+};
+function distance(a, b) {
+  if (a === b) return 0;
+  const dist = { [a]: 0 };
+  const q = [a];
+  while (q.length) {
+    const c = q.shift();
+    for (const n of ADJ[c]) {
+      if (dist[n] === undefined) {
+        dist[n] = dist[c] + 1;
+        q.push(n);
+      }
+    }
+  }
+  return dist[b];
+}
+
+const TOKENS = [
+  ["F-22", "US stealth fighter", "4 from the card", "2", "2, +1", "1 / need 2", "none", "AV 4", "Winchester unless the attack roll is 4. Air-to-air only. Spawns on Band A."],
+  ["F-35A", "US stealth multirole", "4", "2", "2", "1 / need 2", "1 / need 2", "AV 4", "Can fight aircraft and strike the surface. One point of damage on a base hit, not an exploding die."],
+  ["F-16C", "US fighter", "4", "2", "2", "1 / need 3", "1 / need 2", "AV 2", "Required in Campaign 1. Weaker in the air than an F-22, and it can bomb."],
+  ["F-15E", "US strike fighter", "4", "2", "2", "1 / need 2", "1 / need 2", "AV 2", "A straightforward fighter that can also hit ships, ADA, and bases."],
+  ["B-52", "US bomber", "1 per card, two cards", "1", "2", "none", "6 / need 2, exploding", "AV 2", "From US standoff the range-6 bomb run reaches the PRC airbase. The damage die is a D4 you assign."],
+  ["AEW", "US sensor", "1", "1", "3, +2, two dice", "none", "none", "AV 2", "The finder. It never shoots and never goes Winchester. Front band or standoff."],
+  ["Attack UAS", "US drone", "4", "1", "2", "none", "1 / need 3", "AV 3", "Short-range bomber. Keeps ammo on a natural 3 or 4. May spawn on any center band."],
+  ["Recon UAS", "US drone", "2", "1", "2, +1, two dice", "none", "none", "AV 3", "A second sensor. Never goes Winchester."],
+  ["ADA", "US air defense", "1, from an enabler or Hedgehog", "0", "2, +1", "1 / need 2", "none", "AV 2", "Does not move. Automatic missile defense. Die to a surface attack, not air-to-air."],
+  ["EC-130", "US jammer", "1, from a card", "1", "none", "none", "none", "AV 3", "A PRC attack launched from this token's band is at disadvantage."],
+  ["DDG", "US ship", "1", "1", "2, +1", "3 / need 2", "3 / need 2, exploding", "AV 2", "Moves on the center bands. 4 air salvos, 1 surface salvo. Can declare missile defense."],
+  ["J-20", "PRC stealth fighter", "4", "2", "2, +1", "1 / need 2", "none", "AV 4", "The PRC F-22. Air-to-air only, hard to acquire."],
+  ["J-10", "PRC fighter", "4", "2", "2", "1 / need 3", "1 / need 2", "AV 2", "Required in Campaign 1 for the PRC. Same shape as the F-16."],
+  ["H-6K", "PRC bomber", "1", "1", "2", "none", "6 / need 2, exploding", "AV 2", "The PRC B-52. Front band or standoff. Range 6 reaches the US airbase from PRC standoff."],
+  ["Long-range ADA", "PRC air defense", "1", "0", "2, +1", "3 / need 2", "none", "AV 2", "Shoots aircraft out to 3 bands and defends shots that cross its zone. Banned in Campaign 5."],
+  ["Flotilla", "PRC missile boats", "1", "1", "2", "none", "2 / need 3, exploding", "AV 3", "A short-range exploding surface threat. One surface salvo. No missile defense."]
+];
+
+const CYBER = [
+  { rate: 0, next: "A 2 or better reaches rate 1. You will not see this often. Games start at 1." },
+  { rate: 1, next: "You start here. A 3 or better reaches rate 2." },
+  { rate: 2, next: "A 4 reaches rate 3. Offensive cyber now removes 2 tokens, or forces 2 discards." },
+  { rate: 3, next: "A 4 reaches rate 4 and wins the game. This is the last rate you can hold and keep playing for victory points." },
+  { rate: 4, next: "The game is over. This side wins, and victory points are not compared." }
+];
+
+const CARDS = [
+  ["US", "11", "AC-130 Gunship Attack", "1U response", "Cancel a PRC SOF card."],
+  ["US", "12", "Personnel Recovery", "1U response", "Recover a just-lost US aircraft to Band 1, face-down."],
+  ["US", "13", "Forward Observers", "1U response", "Your next surface strike auto-hits. No Winchester."],
+  ["US", "14", "SOF Reconnaissance", "1U", "Roll a D4 and acquire that many PRC tokens. On a 4, +1 cyber."],
+  ["US", "15", "SOF Cyber Infiltration", "1U", "Roll to raise your cyber rate."],
+  ["US", "16", "Aerial Refueling", "Multi-use", "Draft one extra squadron beyond the posture."],
+  ["US", "17", "Quick-Turn Mobility", "1U response", "Recover a just-lost US aircraft, face-down."],
+  ["US", "18", "Rapid Resupply", "1U", "Recover a discarded squadron or enabler. Usable immediately. Reactivation can break on a 1."],
+  ["US", "19", "Improved Munitions", "1U enduring", "US air-to-air rolls at advantage this ATO."],
+  ["US", "20", "Flying Crew Chief", "Multi-use enduring", "One CL squadron launches every aircraft this ATO."],
+  ["US", "21", "Cyber Reconnaissance", "Multi-use", "Acquire PRC tokens equal to your cyber rate."],
+  ["US", "22", "Cyber Infiltration", "Multi-use", "Roll to raise your cyber rate."],
+  ["US", "23", "Defensive Cyber", "Multi-use response", "Cancel a PRC cyber card, or degrade PRC cyber by 1."],
+  ["US", "24", "Offensive Cyber", "1U", "Remove PRC tokens equal to your rate, or force that many discards."],
+  ["US", "25", "Cyber Counter-UAS", "1U", "Destroy PRC drones equal to your cyber rate."],
+  ["US", "26", "EW Spoofing", "1U enduring", "PRC acquisition rolls at disadvantage this ATO."],
+  ["US", "27", "Defensive EW", "1U enduring", "PRC attack rolls at disadvantage this ATO."],
+  ["US", "28", "Offensive EW", "1U enduring", "US attack rolls at advantage this ATO."],
+  ["US", "29", "Air Launched Decoy", "1U response", "Cancel a PRC hit, or a PRC missile-defense attempt."],
+  ["US", "30", "EC-130 Compass Call", "1U", "Place an EC-130. PRC attacks from its band are at disadvantage."],
+  ["US", "31", "Space Reconnaissance", "Multi-use", "Roll a D4 and acquire that many PRC tokens."],
+  ["US", "32", "Counter Space", "1U response", "Cancel a PRC space card."],
+  ["US", "33", "Joint Defensive Cyber", "1U", "Degrade PRC cyber rate by 2."],
+  ["US", "34", "Joint Offensive Cyber", "1U", "Remove PRC tokens equal to twice your cyber rate."],
+  ["US", "35", "Space-Based EW", "1U enduring", "PRC base-attack rolls at disadvantage this ATO."],
+  ["US", "36", "Land-Based Missile Defense", "1U", "Place one ADA on the US airbase or CL."],
+  ["US", "37", "Maritime Missile Defense", "1U", "Place DDG 81 in any center band."],
+  ["US", "38", "Red Horse Squadron", "1U response", "Cancel all damage from a PRC attack on your base."],
+  ["US", "39", "Resilient Bases", "1U response", "Cancel all damage from a PRC attack on your base."],
+  ["US", "40", "Infantry Battalion", "1U", "Place on a base. Shields squadrons there from SOF. Two hits. No VP for damaging it."],
+  ["US", "41", "HIMARS", "1U", "Roll 2+, then a D4 against PRC airbase VP boxes only."],
+  ["US", "42", "Tomahawk Strike", "1U", "Place DDG 115. Roll 2+, then a D4 against PRC airbase VP boxes only."],
+  ["US", "43", "Submarine Strike", "Multi-use", "Auto-kill a PRC surface combatant, or cancel a PRC submarine card."],
+  ["US", "44", "Marine Littoral Regiment", "1U", "Auto-kill a PRC surface combatant."],
+  ["PRC", "65", "Anti-Access / Area Denial", "1U response", "Cancel a US mobility or maintenance card."],
+  ["PRC", "66", "Aerial Refueling", "1U", "Place one extra squadron beyond the posture."],
+  ["PRC", "67", "Reserves", "1U response", "Regenerate a squadron that lost all its tokens. It returns face-down."],
+  ["PRC", "68", "UAS Proliferation", "1U response", "After a drone acquire roll, take another attempt."],
+  ["PRC", "69", "Elite Pilots", "1U", "Your next air-to-air attack is at advantage."],
+  ["PRC", "70", "Ground-Based Radar", "1U", "Roll a D4 and acquire that many US tokens."],
+  ["PRC", "71", "Badger Surge", "1U enduring", "H-6K rolls at advantage this ATO."],
+  ["PRC", "72", "Special Mission Aircraft", "1U", "Roll a D4 and acquire that many, or your next air-to-air is at advantage."],
+  ["PRC", "73", "SOF Reconnaissance", "1U", "Roll a D4 and acquire that many US tokens."],
+  ["PRC", "74", "Munitions Upgrade", "1U enduring", "One fighter squadron shoots air-to-air at range 4 this ATO."],
+  ["PRC", "75", "Ballistic Missile Strike", "1U", "Roll 2+, then a D4 across the US base: cards and VP boxes."],
+  ["PRC", "76", "Land Attack Cruise Missile", "1U", "Roll 2+, then a D4 across the US base."],
+  ["PRC", "77", "Maritime Strike Cruise Missile", "1U", "Unblockable. Destroy one US surface combatant."],
+  ["PRC", "78", "Hypersonic Missile", "1U", "Unblockable. Roll a D4. The US base takes that damage."],
+  ["PRC", "79", "Decoy Warheads", "1U response", "Cancel a declared US missile-defense attempt."],
+  ["PRC", "80", "Cyber Infiltration", "Multi-use", "Roll to raise your cyber rate."],
+  ["PRC", "81", "Offensive Cyber Operations", "1U", "Remove US tokens equal to your rate, or force that many discards."],
+  ["PRC", "82", "Defensive Cyber Operations", "Multi-use response", "Cancel a US cyber card, or degrade US cyber by 1."],
+  ["PRC", "83", "Cyber Reconnaissance", "Multi-use", "Acquire US tokens equal to your cyber rate."],
+  ["PRC", "84", "Cyber Counter-UAS", "1U", "Destroy US drones equal to your cyber rate."],
+  ["PRC", "85", "Shandong J-15 Squadron", "1U", "Place 4 J-15s. They may spawn on any band."],
+  ["PRC", "86", "Guided Missile Cruiser", "1U", "Place the Dalian cruiser in any center band."],
+  ["PRC", "87", "Guided Missile Destroyer", "1U", "Place the Nanning destroyer in any center band."],
+  ["PRC", "88", "Missile Boat Flotilla", "1U", "Place the flotilla in any center band."],
+  ["PRC", "89", "Diesel-Submarine Strike", "1U", "Auto-kill a US surface combatant, or cancel a US submarine card."],
+  ["PRC", "90", "Space-Based EW", "1U enduring", "US attack rolls against bases and tokens are at disadvantage this ATO."],
+  ["PRC", "91", "Constellation Reconstitution", "1U", "Return a spent PLASSF card to the deck for the next ATO."],
+  ["PRC", "92", "Counter Space", "1U response", "Cancel a US space card."],
+  ["PRC", "93", "Anti-Satellite Strike", "1U response", "Cancel a US space card."],
+  ["PRC", "94", "Space Reconnaissance", "Multi-use", "Roll a D4 and acquire that many US tokens."],
+  ["PRC", "95", "Sea Dragons Strike", "1U", "Unblockable SOF. Roll a D4 against US airbase VP boxes."],
+  ["PRC", "96", "PLANMC Raid", "1U", "Unblockable SOF. Roll a D4 against US airbase VP boxes."],
+  ["PRC", "97", "SOF Cyber Infiltration", "Multi-use", "Roll to raise your cyber rate."],
+  ["PRC", "98", "SOF Reconnaissance", "1U", "Roll a D4 and acquire that many US tokens. On a 4, +1 cyber."]
+];
+
+function el(tag, attrs, children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") node.className = v;
+    else if (k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2), v);
+    else if (v !== null && v !== undefined) node.setAttribute(k, v);
+  }
+  for (const child of children || []) {
+    node.append(child instanceof Node ? child : document.createTextNode(child));
+  }
+  return node;
+}
+
+function initBoard() {
+  const root = document.getElementById("board");
+  const read = document.getElementById("board-read");
+  const presets = document.getElementById("board-presets");
+  let origin = null;
+  let dest = null;
+  const buttons = {};
+  function paint() {
+    for (const [id, btn] of Object.entries(buttons)) {
+      btn.classList.toggle("origin", id === origin);
+      btn.classList.toggle("dest", id === dest);
+    }
+    if (!origin) {
+      read.textContent = "Pick a start, then a destination.";
+      return;
+    }
+    if (!dest) {
+      read.textContent = LOC_LABEL[origin] + " selected. Pick a destination.";
+      return;
+    }
+    const d = distance(origin, dest);
+    read.textContent = LOC_LABEL[origin] + " to " + LOC_LABEL[dest] + " is range " + d + ". A weapon or move of " + d + " just reaches. Anything shorter falls short.";
+  }
+  function add(parent, id, cls) {
+    const b = el("button", { type: "button", class: "loc " + cls }, [LOC_LABEL[id]]);
+    b.addEventListener("click", () => {
+      if (!origin || dest) { origin = id; dest = null; }
+      else if (id === origin) { origin = null; }
+      else dest = id;
+      paint();
+    });
+    buttons[id] = b;
+    parent.append(b);
+  }
+  const rearL = el("div", { class: "cluster" });
+  const bands = el("div", { class: "bands" });
+  const rearR = el("div", { class: "cluster" });
+  add(rearL, "US_STANDOFF", "rear");
+  add(rearL, "US_AIRBASE", "us");
+  add(rearL, "US_CL", "us");
+  for (const id of ["BAND_A", "BAND_B", "BAND_C", "BAND_D", "BAND_E"]) add(bands, id, "");
+  add(rearR, "PRC_AIRBASE", "prc");
+  add(rearR, "PRC_STANDOFF", "rear");
+  root.append(rearL, bands, rearR);
+  const samples = [
+    ["B-52 from standoff", "US_STANDOFF", "PRC_AIRBASE"],
+    ["Fighter move of 2", "BAND_A", "BAND_C"],
+    ["Into PRC standoff", "BAND_E", "PRC_STANDOFF"]
+  ];
+  for (const [label, a, b] of samples) {
+    presets.append(el("button", { type: "button", onclick: () => { origin = a; dest = b; paint(); } }, [label]));
+  }
+}
+
+const TOKEN_SLUG = {
+  "F-22": "f-22", "F-35A": "f-35a", "F-16C": "f-16c", "F-15E": "f-15e",
+  "B-52": "b-52", "AEW": "aew-us", "Attack UAS": "attack-uas-us",
+  "Recon UAS": "recon-uas-us", "ADA": "ada-us", "EC-130": "ec-130",
+  "DDG": "ddg-115", "J-20": "j-20b", "J-10": "j-10", "H-6K": "h-6k",
+  "Long-range ADA": "long-range-ada-prc", "Flotilla": "flotilla"
+};
+function initTokens() {
+  const pick = document.getElementById("token-pick");
+  const card = document.getElementById("token-card");
+  function show(t) {
+    const slug = TOKEN_SLUG[t[0]];
+    const hero = el("div", { class: "token-hero" });
+    if (slug) hero.append(el("img", { class: "token-hero-img", src: "/art/tokens/" + slug + ".jpg", alt: t[0] }));
+    hero.append(el("div", {}, [
+      el("h4", {}, [t[0] + " — " + t[1]]),
+      el("p", {}, [t[8] + " The picture is the same counter the board uses. Click it to read the printed numbers."])
+    ]));
+    card.replaceChildren(hero);
+    const grid = el("div", { class: "statgrid" });
+    const bits = [["Generates", t[2]], ["Move", t[3]], ["Acquire", t[4]], ["Air", t[5]], ["Surface", t[6]], ["Stealth", t[7]]];
+    for (const [k, v] of bits) {
+      grid.append(el("div", {}, [el("span", { class: "k" }, [k]), v]));
+    }
+    card.append(grid);
+  }
+  TOKENS.forEach((t, i) => {
+    pick.append(el("button", { type: "button", onclick: () => show(t) }, [t[0]]));
+    if (i === 0) show(t);
+  });
+}
+
+function initCyber() {
+  const root = document.getElementById("cyber");
+  const read = document.getElementById("cyber-read");
+  const buttons = [];
+  function show(i) {
+    buttons.forEach((b, n) => {
+      b.classList.toggle("on", n === i && i < 4);
+      b.classList.toggle("win", n === i && i === 4);
+    });
+    read.textContent = "Cyber Rate " + CYBER[i].rate + ". " + CYBER[i].next;
+  }
+  CYBER.forEach((c, i) => {
+    const b = el("button", { type: "button", class: i === 4 ? "win" : "", onclick: () => show(i) }, ["Rate " + c.rate]);
+    buttons.push(b);
+    root.append(b);
+  });
+  show(1);
+}
+
+function initTurn() {
+  const root = document.getElementById("turn-builder");
+  const read = document.getElementById("turn-read");
+  let enabler = false;
+  let branch = "mas";
+  const parts = { move: true, acquire: true, shoot: false };
+  function sentence() {
+    if (branch === "pass") {
+      read.textContent = enabler
+        ? "Playing an enabler is still an action. The pass streak breaks, and the ATO continues."
+        : "A pure pass. If the opponent passes next, the ATO ends.";
+      return;
+    }
+    if (branch === "act") {
+      read.textContent = (enabler ? "Play one enabler, then activate. " : "Activate a squadron. ") + "Launching ends the turn. You do not also move, acquire, or shoot.";
+      return;
+    }
+    const used = ["move", "acquire", "shoot"].filter(k => parts[k]);
+    const order = used.length ? used.join(", then ") : "nothing in the air";
+    read.textContent = (enabler ? "Play one enabler, in either order with the rest. " : "") + "Move-acquire-shoot: " + order + ". Each is optional, each is once, and the order can be rearranged. This turn cannot also activate a squadron.";
+  }
+  const row = el("div", { class: "chips" });
+  row.append(el("button", { type: "button", onclick: () => { enabler = !enabler; sentence(); } }, ["Toggle enabler"]));
+  row.append(el("button", { type: "button", onclick: () => { branch = "act"; sentence(); } }, ["Activate a squadron"]));
+  row.append(el("button", { type: "button", onclick: () => { branch = "mas"; sentence(); } }, ["Move, acquire, shoot"]));
+  row.append(el("button", { type: "button", onclick: () => { branch = "pass"; sentence(); } }, ["Pass"]));
+  const row2 = el("div", { class: "chips" });
+  for (const key of ["move", "acquire", "shoot"]) {
+    row2.append(el("button", { type: "button", onclick: () => { branch = "mas"; parts[key] = !parts[key]; sentence(); } }, ["Toggle " + key]));
+  }
+  root.append(row, row2);
+  sentence();
+}
+
+function initDamage() {
+  const root = document.getElementById("damage-toy");
+  const read = document.getElementById("damage-read");
+  const targets = [
+    { name: "J-16 squadron card", cap: 2, hits: 0, note: "2 hits destroy the card and the aircraft on it" },
+    { name: "J-10 squadron card", cap: 2, hits: 0, note: "1 hit now resets if you stop here" },
+    { name: "VP box 1", cap: 1, hits: 0, note: "+1 VP, permanent" },
+    { name: "VP box 2", cap: 1, hits: 0, note: "+1 VP, permanent" },
+    { name: "VP box 3", cap: 1, hits: 0, note: "+1 VP, permanent" },
+    { name: "Unacquired ADA", cap: 0, hits: 0, note: "Not a legal target until acquired" }
+  ];
+  let left = 3;
+  function render() {
+    root.replaceChildren();
+    const spent = 3 - left;
+    read.textContent = left + " of 3 damage left to assign. " + (left === 0 ? "The strike is fully assigned." : "Click a legal target.");
+    targets.forEach((t, i) => {
+      const pips = el("span", { class: "boxes" });
+      if (t.cap === 0) pips.append(el("span", {}, ["blocked"]));
+      for (let n = 0; n < t.cap; n++) pips.append(el("i", { class: "pip" + (n < t.hits ? " on" : "") }));
+      const btn = el("button", { type: "button", class: "tgt" }, [
+        el("span", {}, [t.name, el("br"), el("small", {}, [t.note])]),
+        pips
+      ]);
+      btn.addEventListener("click", () => {
+        if (t.cap === 0 || t.hits >= t.cap || left <= 0) return;
+        t.hits += 1;
+        left -= 1;
+        render();
+      });
+      root.append(btn);
+    });
+    root.append(el("button", { type: "button", onclick: () => { targets.forEach(t => { t.hits = 0; }); left = 3; render(); } }, ["Reset the 3 points"]));
+  }
+  render();
+}
+
+function initCards() {
+  const root = document.getElementById("card-tables");
+  const input = document.getElementById("card-filter");
+  const table = el("table");
+  table.append(el("thead", {}, [el("tr", {}, ["", "Side", "Card", "Name", "Type", "What it does"].map(h => el("th", {}, [h])))]));
+  const body = el("tbody");
+  for (const row of CARDS) {
+    const tr = el("tr", {}, [el("td", {}, [el("img", { class: "row-card", src: "/art/cards/" + row[1] + ".jpg", alt: row[2] })]), ...row.map(cell => el("td", {}, [cell]))]);
+    tr.dataset.blob = row.join(" ").toLowerCase();
+    body.append(tr);
+  }
+  table.append(body);
+  root.append(table);
+  input.addEventListener("input", () => {
+    const q = input.value.trim().toLowerCase();
+    for (const tr of body.querySelectorAll("tr")) {
+      tr.classList.toggle("hidden-row", q && !tr.dataset.blob.includes(q));
+    }
+  });
+}
+
+const lessons = [...document.querySelectorAll("article.lesson")];
+const toc = document.getElementById("toc");
+let idx = Number(localStorage.getItem("afwip-tutorial-lesson") || 0);
+if (!Number.isInteger(idx) || idx < 0 || idx >= lessons.length) idx = 0;
+const seen = new Set(JSON.parse(localStorage.getItem("afwip-tutorial-seen") || "[]"));
+let lastGroup = "";
+const tocButtons = lessons.map((lesson, i) => {
+  const group = lesson.dataset.group;
+  if (group !== lastGroup) {
+    toc.append(el("div", { class: "group" }, [group]));
+    lastGroup = group;
+  }
+  const b = el("button", { type: "button", onclick: () => show(i) }, [(i + 1) + ". " + lesson.dataset.title]);
+  toc.append(b);
+  return b;
+});
+
+function show(i, opts) {
+  idx = i;
+  seen.add(i);
+  localStorage.setItem("afwip-tutorial-lesson", String(i));
+  localStorage.setItem("afwip-tutorial-seen", JSON.stringify([...seen]));
+  lessons.forEach((lesson, n) => { lesson.hidden = n !== i; });
+  tocButtons.forEach((b, n) => {
+    b.classList.toggle("on", n === i);
+    b.classList.toggle("seen", seen.has(n));
+  });
+  const label = document.getElementById("progress-label");
+  label.textContent = "Lesson " + (i + 1) + " of " + lessons.length;
+  document.getElementById("bar").style.width = ((i + 1) / lessons.length * 100) + "%";
+  document.getElementById("pos").textContent = (i + 1) + " / " + lessons.length;
+  document.getElementById("prev").disabled = i === 0;
+  const next = document.getElementById("next");
+  next.textContent = i === lessons.length - 1 ? "Back to the game" : "Next";
+  if (!(opts && opts.hit)) {
+    document.getElementById("main").scrollIntoView({ block: "start" });
+    window.scrollTo(0, 0);
+  }
+  applySearch(!!(opts && opts.hit));
+}
+
+let manualQuery = "";
+function escapeReg(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function clearMarks(root) {
+  root.querySelectorAll("mark.manual-hit").forEach((mark) => {
+    const parent = mark.parentNode;
+    parent.replaceChild(document.createTextNode(mark.textContent), mark);
+    parent.normalize();
+  });
+}
+function highlightLesson(lesson, query) {
+  clearMarks(lesson);
+  if (!query) return [];
+  const re = new RegExp(escapeReg(query), "gi");
+  const nodes = [];
+  const walker = document.createTreeWalker(lesson, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!node.nodeValue || !re.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
+      re.lastIndex = 0;
+      const parent = node.parentElement;
+      if (!parent || parent.closest("script, style")) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  const marks = [];
+  for (const node of nodes) {
+    const text = node.nodeValue;
+    re.lastIndex = 0;
+    const frag = document.createDocumentFragment();
+    let last = 0;
+    let match;
+    while ((match = re.exec(text))) {
+      if (match.index > last) frag.append(document.createTextNode(text.slice(last, match.index)));
+      const mark = document.createElement("mark");
+      mark.className = "manual-hit";
+      mark.textContent = match[0];
+      frag.append(mark);
+      marks.push(mark);
+      last = match.index + match[0].length;
+      if (match.index === re.lastIndex) re.lastIndex += 1;
+    }
+    if (last < text.length) frag.append(document.createTextNode(text.slice(last)));
+    node.parentNode.replaceChild(frag, node);
+  }
+  return marks;
+}
+function lessonPlain(lesson) {
+  return lesson.textContent.replace(/\s+/g, " ").trim();
+}
+function searchHits() {
+  const query = manualQuery.trim();
+  if (query.length < 2) return [];
+  const re = new RegExp(escapeReg(query), "ig");
+  const hits = [];
+  lessons.forEach((lesson, i) => {
+    const text = lessonPlain(lesson);
+    re.lastIndex = 0;
+    const match = re.exec(text);
+    if (!match) return;
+    let count = 1;
+    while (re.exec(text)) count += 1;
+    const start = Math.max(0, match.index - 42);
+    const end = Math.min(text.length, match.index + match[0].length + 42);
+    const snip = (start > 0 ? "…" : "") + text.slice(start, end) + (end < text.length ? "…" : "");
+    hits.push({ i, count, snip, title: lesson.dataset.title, group: lesson.dataset.group });
+  });
+  return hits;
+}
+function snippetWithMark(text, query) {
+  const frag = document.createDocumentFragment();
+  const re = new RegExp(escapeReg(query), "ig");
+  let last = 0;
+  let match;
+  while ((match = re.exec(text))) {
+    if (match.index > last) frag.append(document.createTextNode(text.slice(last, match.index)));
+    const mark = document.createElement("mark");
+    mark.textContent = match[0];
+    frag.append(mark);
+    last = match.index + match[0].length;
+    if (match.index === re.lastIndex) re.lastIndex += 1;
+  }
+  if (last < text.length) frag.append(document.createTextNode(text.slice(last)));
+  return frag;
+}
+function renderResults() {
+  const box = document.getElementById("manual-results");
+  const query = manualQuery.trim();
+  box.replaceChildren();
+  if (query.length < 2) {
+    box.hidden = true;
+    return;
+  }
+  const hits = searchHits();
+  const count = document.createElement("p");
+  count.className = "count";
+  count.textContent = hits.length
+    ? hits.length + (hits.length === 1 ? " page" : " pages")
+    : "No pages contain that";
+  box.append(count);
+  hits.forEach((hit, n) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    if (n === 0) button.className = "on";
+    const where = document.createElement("span");
+    where.className = "where";
+    where.textContent = (hit.i + 1) + ". " + hit.title + " · " + hit.group
+      + (hit.count > 1 ? " · " + hit.count + " times" : "");
+    const snip = document.createElement("span");
+    snip.className = "snip";
+    snip.append(snippetWithMark(hit.snip, query));
+    button.append(where, snip);
+    button.addEventListener("click", () => {
+      box.hidden = true;
+      show(hit.i, { hit: true });
+    });
+    box.append(button);
+  });
+  box.hidden = false;
+}
+function applySearch(focusHit) {
+  const query = manualQuery.trim();
+  const active = query.length >= 2;
+  const matched = new Set(active ? searchHits().map((hit) => hit.i) : []);
+  tocButtons.forEach((button, n) => {
+    button.classList.toggle("hit-page", matched.has(n));
+    button.classList.toggle("quiet", active && !matched.has(n));
+  });
+  lessons.forEach((lesson, n) => {
+    if (n !== idx) clearMarks(lesson);
+  });
+  if (!active) {
+    clearMarks(lessons[idx]);
+    return;
+  }
+  const marks = highlightLesson(lessons[idx], query);
+  if (focusHit && marks.length) {
+    const details = marks[0].closest("details");
+    if (details) details.open = true;
+    marks[0].classList.add("current");
+    marks[0].scrollIntoView({ block: "center" });
+  }
+}
+function moveResult(step) {
+  const buttons = [...document.querySelectorAll("#manual-results button")];
+  if (!buttons.length) return;
+  let at = buttons.findIndex((button) => button.classList.contains("on"));
+  if (at < 0) at = 0;
+  buttons[at].classList.remove("on");
+  const next = buttons[(at + step + buttons.length) % buttons.length];
+  next.classList.add("on");
+  next.scrollIntoView({ block: "nearest" });
+}
+
+const searchForm = document.getElementById("manual-search");
+const searchInput = document.getElementById("manual-query");
+searchInput.addEventListener("input", () => {
+  manualQuery = searchInput.value;
+  renderResults();
+  applySearch(false);
+});
+searchInput.addEventListener("focus", () => {
+  if (manualQuery.trim().length >= 2) renderResults();
+});
+searchForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const chosen = document.querySelector("#manual-results button.on")
+    || document.querySelector("#manual-results button");
+  if (chosen) chosen.click();
+});
+searchInput.addEventListener("keydown", (event) => {
+  if (event.key === "ArrowDown") { event.preventDefault(); moveResult(1); }
+  if (event.key === "ArrowUp") { event.preventDefault(); moveResult(-1); }
+  if (event.key === "Escape") {
+    event.stopPropagation();
+    manualQuery = "";
+    searchInput.value = "";
+    document.getElementById("manual-results").hidden = true;
+    applySearch(false);
+  }
+});
+document.addEventListener("click", (event) => {
+  if (!searchForm.contains(event.target)) document.getElementById("manual-results").hidden = true;
+});
+
+const embed = new URLSearchParams(location.search).get("embed") === "1";
+function closeEmbed() {
+  window.parent.postMessage({ type: "afwip-manual-close" }, location.origin);
+}
+if (embed) {
+  const back = document.querySelector("header.top .back");
+  back.textContent = "Close";
+  back.addEventListener("click", (event) => {
+    event.preventDefault();
+    closeEmbed();
+  });
+}
+document.getElementById("prev").addEventListener("click", () => { if (idx > 0) show(idx - 1); });
+document.getElementById("next").addEventListener("click", () => {
+  if (idx < lessons.length - 1) show(idx + 1);
+  else if (embed) closeEmbed();
+  else window.location.href = "/";
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && embed) { closeEmbed(); return; }
+  if (e.target.matches("input, textarea")) return;
+  if (e.key === "ArrowRight") document.getElementById("next").click();
+  if (e.key === "ArrowLeft" && idx > 0) show(idx - 1);
+});
+
+initBoard();
+initTokens();
+initCyber();
+initTurn();
+initDamage();
+initCards();
+const requested = Number(new URLSearchParams(location.search).get("lesson"));
+if (Number.isInteger(requested) && requested >= 1 && requested <= lessons.length) idx = requested - 1;
+show(idx);
+</script>
+<script src="/tutorial/visuals.js"></script>
+</body>
+</html>

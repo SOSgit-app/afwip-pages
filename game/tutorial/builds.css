@@ -1,0 +1,178 @@
+/* Example drafts on the start screen. The button is reattached inside the
+   menu. The sheet lives on the body so a React render cannot remove it. */
+body:has(.menu) .menu {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 12px;
+}
+body:has(.menu) .menu > *:not(.tutorial-card):not(.builds-card) {
+  grid-column: 1 / -1;
+}
+body:has(.menu) .menu button.tourney.builds-card,
+body:has(.menu) .menu button.tourney.tutorial-card {
+  width: 100%;
+  min-height: 52px;
+}
+body:has(.menu) .menu button.tourney.builds-card {
+  border-color: #9be7c4;
+  color: #e9fff5;
+  background:
+    linear-gradient(180deg, rgba(120, 220, 176, 0.34), rgba(28, 120, 90, 0.16)),
+    rgba(8, 42, 36, 0.96);
+}
+body:has(.menu) .menu button.tourney.builds-card:hover:not(:disabled) {
+  border-color: #d4ffe9;
+  color: #fff;
+  background:
+    linear-gradient(180deg, rgba(150, 235, 196, 0.46), rgba(36, 150, 110, 0.22)),
+    rgba(10, 54, 46, 0.98);
+}
+body:has(.menu) .menu button.builds-card .tourney-sub {
+  color: #d7f6e8;
+  max-width: 36em;
+  line-height: 1.45;
+}
+
+#builds-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 28px 16px;
+  overflow: auto;
+  background: rgba(4, 12, 24, 0.72);
+}
+#builds-sheet[hidden] { display: none; }
+
+.builds-panel {
+  width: min(980px, 100%);
+  margin: 12px auto 28px;
+  padding: 22px 22px 18px;
+  border-radius: 4px;
+  border: 2px solid #e8c56b;
+  background:
+    linear-gradient(#ffe7a3, #ffe7a3) left 12px top 12px / 22px 3px no-repeat,
+    linear-gradient(#ffe7a3, #ffe7a3) left 12px top 12px / 3px 22px no-repeat,
+    linear-gradient(#ffe7a3, #ffe7a3) right 12px top 12px / 22px 3px no-repeat,
+    linear-gradient(#ffe7a3, #ffe7a3) right 12px top 12px / 3px 22px no-repeat,
+    linear-gradient(#ffe7a3, #ffe7a3) left 12px bottom 12px / 22px 3px no-repeat,
+    linear-gradient(#ffe7a3, #ffe7a3) left 12px bottom 12px / 3px 22px no-repeat,
+    linear-gradient(#ffe7a3, #ffe7a3) right 12px bottom 12px / 22px 3px no-repeat,
+    linear-gradient(#ffe7a3, #ffe7a3) right 12px bottom 12px / 3px 22px no-repeat,
+    linear-gradient(180deg, rgba(12, 48, 86, 0.96), rgba(7, 28, 58, 0.98));
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.4);
+  color: #e7eef6;
+}
+
+.builds-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.builds-kicker {
+  margin: 0;
+  color: #ffe08a;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 700;
+}
+.builds-panel h2 {
+  margin: 4px 0 0;
+  color: #fff6d4;
+  font-size: 26px;
+  letter-spacing: 0.04em;
+}
+.builds-close {
+  flex: none;
+  padding: 6px 14px;
+  border-color: rgba(232, 197, 107, 0.8);
+  color: #ffe7a8;
+  background: rgba(8, 32, 62, 0.94);
+}
+.builds-lead {
+  margin: 12px 0 14px;
+  max-width: 68em;
+  line-height: 1.5;
+  color: #d7e4f2;
+}
+
+.builds-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.builds-switch button {
+  padding: 6px 14px;
+  border-color: rgba(214, 228, 244, 0.28);
+  background: rgba(8, 32, 62, 0.94);
+  color: #f4f8fc;
+}
+.builds-switch button[aria-selected="true"] {
+  border-color: #ffd166;
+  color: #fff6d4;
+  background: rgba(70, 52, 12, 0.9);
+}
+
+.builds-idea {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-left: 3px solid #ffd166;
+  background: rgba(4, 16, 34, 0.45);
+  line-height: 1.5;
+}
+.builds-block { margin: 0 0 12px; }
+.builds-block h3 {
+  margin: 0 0 8px;
+  color: #ffe08a;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.builds-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+}
+.builds-card {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 0;
+  padding: 6px;
+  background: rgba(4, 16, 34, 0.4);
+  border: 1px solid rgba(232, 197, 107, 0.28);
+}
+.builds-card img {
+  width: 64px;
+  height: 90px;
+  object-fit: cover;
+  object-position: top;
+  flex: none;
+  border-radius: 2px;
+  background: #0c1c30;
+}
+.builds-card figcaption { min-width: 0; }
+.builds-card strong {
+  display: block;
+  color: #fff6d4;
+  font-size: 12px;
+  line-height: 1.3;
+}
+.builds-card span {
+  display: block;
+  margin-top: 3px;
+  color: #d5e2ef;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+@media (max-width: 640px) {
+  #builds-sheet { padding: 8px; }
+  .builds-panel { padding: 16px 12px 12px; }
+  .builds-panel h2 { font-size: 20px; }
+}
