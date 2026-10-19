@@ -13,7 +13,6 @@
       const parts = path.split("/").filter(Boolean);
       if (parts.length >= 1) return "/" + parts[0] + "/";
     }
-    // Serving from /game/index.html locally via the root index redirect
     if (path.includes("/game/")) {
       const i = path.indexOf("/game/");
       return path.slice(0, i + 1);
@@ -29,6 +28,19 @@
     if (typeof url !== "string") return url;
     if (!url.startsWith("/") || url.startsWith("//")) return url;
     return BASE.replace(/\/$/, "") + url;
+  }
+
+  /** Pyodide may pass string | Request | URL | RequestInfo. */
+  function requestUrl(input) {
+    if (typeof input === "string") return input;
+    if (!input) return "";
+    if (typeof input.url === "string") return input.url;
+    if (typeof input.href === "string") return input.href;
+    try {
+      return String(input);
+    } catch (e) {
+      return "";
+    }
   }
 
   // Rewrite absolute root URLs so art/assets work under /repo/ on Pages.
@@ -70,7 +82,7 @@
     await ready;
     const method = (init && init.method) || "GET";
     const body = (init && init.body) || "";
-    const full = typeof url === "string" ? url : url.url;
+    const full = requestUrl(url);
     const resultJson = await pyodide.runPythonAsync(
       `session_api.handle(${JSON.stringify(method)}, ${JSON.stringify(full)}, ${JSON.stringify(String(body))})`
     );
@@ -84,14 +96,17 @@
 
   const origFetch = window.fetch.bind(window);
   window.fetch = function (input, init) {
-    let url = typeof input === "string" ? input : input && input.url;
-    if (typeof url === "string" && url.startsWith("/") && !url.startsWith("//")) {
+    let url = requestUrl(input);
+    const original = url;
+    if (url.startsWith("/") && !url.startsWith("//")) {
       url = withBase(url);
-      input = typeof input === "string" ? url : new Request(url, input);
     }
-    const check = typeof input === "string" ? input : input.url;
-    if (check.includes("/api/")) {
-      return apiCall(check, init || {});
+    if (url.indexOf("/api/") !== -1) {
+      return apiCall(url, init || {});
+    }
+    // Rebased site-relative path → fetch the string URL.
+    if (url && url !== original) {
+      return origFetch(url, init);
     }
     return origFetch(input, init);
   };
@@ -138,6 +153,9 @@
     const manRes = await origFetch(withBase("/python/manifest.json"));
     if (!manRes.ok) throw new Error("missing python/manifest.json");
     const manifest = await manRes.json();
+    if (!Array.isArray(manifest)) {
+      throw new Error("python/manifest.json must be a JSON array of file paths");
+    }
     await writeTree(pyodide, manifest, withBase("/python/"));
 
     await pyodide.runPythonAsync(`
