@@ -113,7 +113,7 @@
 
   // Bump when Python sources change so GitHub Pages / browser caches cannot
   // keep serving a stale stub or env.py.
-  const PYTHON_CACHE = "prc-enabler-preview";
+  const PYTHON_CACHE = "watch-step-status";
 
   async function writeTree(pyodideInst, manifest, rootUrl) {
     for (const rel of manifest) {

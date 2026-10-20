@@ -329,7 +329,6 @@
   50% { background: #1a1404; color: #ffd166; }
 }
 .live-why { margin: 0 0 2px; font-weight: 650; font-size: 12px; color: #fff; }
-.live-now { margin: 0 0 2px; color: #d5dbe8; }
 .live-lesson, .live-look, .live-just { margin: 0 0 2px; color: #c5d0e4; font-size: 11px; }
 .live-just { color: #8b96ad; font-family: ui-monospace, Consolas, monospace; font-size: 10px; }
 .live-hint { margin: 0; color: #ffd166; font-size: 11px; }
@@ -539,13 +538,52 @@ body.afwip-live .choice-card-preview,
 body.afwip-live #live-card-preview {
   z-index: 26;
 }
-.live-now,
 .live-lesson,
 .live-look,
 .live-just,
 .live-hint {
   display: none !important;
 }
+.live-now {
+  display: none;
+  margin: 0 0 4px;
+  padding: 2px 0;
+  color: #ffe7a8;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+#live-coach.live-watch .live-now:not([hidden]) {
+  display: block;
+}
+#game-watch-status {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0 8px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 209, 102, 0.45);
+  background: rgba(255, 209, 102, 0.1);
+  color: #ffe7a8;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+}
+#game-watch-status.side-prc {
+  border-color: rgba(255, 95, 86, 0.55);
+  background: rgba(255, 95, 86, 0.12);
+  color: #ffc4c0;
+}
+#game-watch-status.side-us {
+  border-color: rgba(76, 195, 255, 0.55);
+  background: rgba(76, 195, 255, 0.12);
+  color: #b8e7ff;
+}
+#game-watch-status[hidden] { display: none; }
 @media (max-width: 800px) {
   #live-coach { max-height: min(88px, 18vh); }
   .live-art img { height: 44px; }

@@ -220,11 +220,23 @@
     suggest.textContent = data.suggest || "";
     suggest.hidden = !data.suggest;
     continueBtn.hidden = data.hold !== "watch";
+    continueBtn.title = data.hold === "watch"
+      ? ((data.now || "Advance one paced decision") + " — each click is one step, not a freeze.")
+      : "";
     why.textContent = data.why || "";
     why.hidden = !why.textContent;
-    // Keep the dock to the yellow pick line + bold why. Extra lesson copy stays off.
-    now.textContent = "";
-    now.hidden = true;
+    // During Continue holds, show the short "what just happened" line.
+    // Otherwise keep the dock to the yellow pick line + bold why.
+    if (data.hold === "watch" && data.now) {
+      now.textContent = data.now;
+      now.hidden = false;
+      dock.classList.add("live-watch");
+    } else {
+      now.textContent = "";
+      now.hidden = true;
+      dock.classList.remove("live-watch");
+    }
+    syncWatchStatus(data);
     lesson.textContent = "";
     lesson.hidden = true;
     look.textContent = "";
@@ -651,6 +663,7 @@
       document.body.classList.remove("afwip-live");
       clearWatchHits();
       hideCard();
+      syncWatchStatus(null);
       fit();
       await syncContinueBtn();
       return;
@@ -660,6 +673,7 @@
       dock.hidden = true;
       document.body.classList.remove("afwip-live");
       hideCard();
+      syncWatchStatus(null);
       fit();
       continueBtn.hidden = true;
       return;
@@ -759,6 +773,7 @@
     dock.hidden = true;
     document.body.classList.remove("afwip-live");
     hideCard();
+    syncWatchStatus(null);
     fit();
     markPick();
   });
@@ -848,6 +863,26 @@
   gamePrompt.id = "game-prompt";
   gamePrompt.hidden = true;
   document.body.append(gamePrompt);
+
+  const watchStatus = document.createElement("div");
+  watchStatus.id = "game-watch-status";
+  watchStatus.hidden = true;
+  document.body.append(watchStatus);
+
+  function syncWatchStatus(data) {
+    if (!data || data.hold !== "watch" || !data.now) {
+      watchStatus.hidden = true;
+      watchStatus.textContent = "";
+      watchStatus.className = "";
+      document.body.classList.remove("afwip-watch-status");
+      return;
+    }
+    const side = (data.watch_side || "").toUpperCase();
+    watchStatus.className = side === "US" || side === "PRC" ? "side-" + side.toLowerCase() : "";
+    watchStatus.textContent = data.now;
+    watchStatus.hidden = false;
+    document.body.classList.add("afwip-watch-status");
+  }
 
   const detailsBtn = document.createElement("button");
   detailsBtn.id = "game-details";
@@ -963,10 +998,11 @@
       drafts.hidden = true;
       back.hidden = true;
       gamePrompt.hidden = true;
+      watchStatus.hidden = true;
       detailsBtn.hidden = true;
       setDetailsOpen(false);
       continueBtn.hidden = true;
-      document.body.classList.remove("afwip-manual", "afwip-unhide");
+      document.body.classList.remove("afwip-manual", "afwip-unhide", "afwip-watch-status");
       return;
     }
     const bar = btn.closest(".topbar") || btn.parentElement;
@@ -978,6 +1014,7 @@
     syncGameDetails();
     const row = [];
     if (!continueBtn.hidden) row.push(continueBtn);
+    if (!watchStatus.hidden) row.push(watchStatus);
     if (!offer.hidden) {
       row.push(offer);
       document.body.classList.add("afwip-unhide");
@@ -1007,6 +1044,7 @@
     continueBtn.hidden = true;
     document.body.classList.remove("afwip-live");
     hideCard();
+    syncWatchStatus(null);
     fit();
     markPick();
   }

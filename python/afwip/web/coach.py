@@ -394,6 +394,18 @@ def _roll_why(view: GameView) -> str:
 def _why(view: GameView, concept: str) -> str:
     if view.roll_pending:
         return _roll_why(view)
+    if view.watch_pending:
+        who = _watch_opponent(view)
+        if view.draft_skip_pending:
+            return (
+                f"One Continue lets {who} finish this whole stretch. "
+                "You are not stuck — the game is waiting on you to advance."
+            )
+        return (
+            f"Each Continue advances one {who} decision (a move, play, launch, "
+            "or pass). Fog of war can hide the piece, but the step still happened — "
+            "keep clicking until their turn ends or your choices return."
+        )
     return _WHY.get(concept, "You make this choice because it is the next legal step in the turn.")
 
 
@@ -458,8 +470,100 @@ def _has_winchester(view: GameView) -> bool:
                for ev in events)
 
 
+def _watch_opponent(view: GameView) -> str:
+    """Side being paced through on this Continue hold."""
+    if view.draft_skip_pending and view.viewer in ("US", "PRC"):
+        return "PRC" if view.viewer == "US" else "US"
+    for ev in reversed(_latest_step(view)):
+        if ev.type == "decision":
+            side = _event_side(ev)
+            if side:
+                return side
+    for ev in reversed(_latest_step(view)):
+        side = _event_side(ev)
+        if side:
+            return side
+    return "PRC" if view.viewer == "US" else "US" if view.viewer == "PRC" else "They"
+
+
+def _watch_status(view: GameView) -> str:
+    """Short line: what this Continue hold is pausing on (no click cue)."""
+    who = _watch_opponent(view)
+    if view.watch_pending and not view.draft_skip_pending:
+        for ev in reversed(_latest_step(view)):
+            if ev.type != "decision":
+                continue
+            if (ev.data or {}).get("kind") != "pass":
+                break
+            if ev.side == view.viewer:
+                return "You passed — their full turn is next"
+            return f"{who} passed — your turn is next"
+    if view.draft_skip_pending:
+        batch = getattr(view, "watch_batch", "") or ""
+        if batch == "intel":
+            return f"{who} · looking at intel cards (one Continue skips the rest)"
+        if batch == "posture":
+            return f"{who} · choosing a posture (one Continue finishes it)"
+        if batch == "squadrons":
+            return f"{who} · drafting squadrons (one Continue skips the rest)"
+        if batch == "enablers":
+            return f"{who} · drafting enablers (one Continue skips the rest)"
+        if batch == "bid":
+            return f"{who} · finishing setup / initiative bid"
+        return f"{who} · several setup picks (one Continue skips ahead)"
+    events = _latest_step(view)
+    for ev in events:
+        if ev.type == "token_winchester" or "winchester" in ev.message.lower():
+            side = ev.side or who
+            return f"{side} · Winchester (out of weapons)"
+    for ev in events:
+        if ev.type != "dice":
+            continue
+        msg = (ev.message or "").lower()
+        if "initiative" in msg:
+            return "Initiative roll resolved"
+        if "cyber" in msg:
+            return "Cyber climb roll resolved"
+    for ev in events:
+        data = ev.data or {}
+        is_move = (
+            ev.type == "token_moved"
+            or (ev.type == "decision" and data.get("kind") == "move")
+        )
+        if not is_move:
+            continue
+        side = ev.side or who
+        src = data.get("from_band")
+        dst = data.get("to_band") or data.get("band")
+        if isinstance(src, str) and isinstance(dst, str) and src and dst and src != dst:
+            return f"{side} · moved {_band_short(src)} → {_band_short(dst)}"
+        return f"{side} · moved a piece"
+    for ev in reversed(events):
+        if ev.type != "decision":
+            continue
+        data = ev.data or {}
+        kind = str(data.get("kind") or "")
+        _, _, label = (ev.message or "").partition(": ")
+        label = label.strip()
+        side = ev.side or who
+        if kind == "play_enabler" or data.get("node_type") == "ENABLER_BRANCH":
+            return f"{side} · played enabler{(': ' + label) if label else ''}"
+        if kind == "activate":
+            return f"{side} · activated{(': ' + label) if label else ''}"
+        if kind == "spawn" or data.get("node_type") == "SPAWN_BAND":
+            return f"{side} · launched{(': ' + label) if label else ''}"
+        if kind in ("acquire", "shoot") or "acquire" in kind or "shoot" in kind:
+            return f"{side} · {label or kind}"
+        if label:
+            return f"{side} · {label}"
+        return _plain(ev.message)
+    return f"{who} · board updated — Continue for their next decision"
+
+
 def _watch_notice(view: GameView) -> str:
     """What just happened, held on screen until the player clicks Continue."""
+    status = _watch_status(view)
+    who = _watch_opponent(view)
     # Pass / end turn: freeze before the opponent's full turn so the handoff
     # is obvious (mid-turn responses are a different Continue).
     if view.watch_pending and not view.draft_skip_pending:
@@ -470,82 +574,34 @@ def _watch_notice(view: GameView) -> str:
                 break
             if ev.side == view.viewer:
                 return (
-                    "You chose Pass / end turn. That hands the turn to the other side. "
-                    "Click Continue to watch their turn."
+                    f"{status}. That hands the turn to the other side. "
+                    "Click Continue to watch their turn — each click shows one of their decisions."
                 )
-            who = ev.side or "The other side"
             return (
-                f"{who} passed and ended their turn. "
+                f"{status}. "
                 "Click Continue when you have seen it."
             )
     if view.draft_skip_pending:
-        who = "PRC" if view.viewer == "US" else "US" if view.viewer == "PRC" else "The other side"
-        batch = getattr(view, "watch_batch", "") or ""
-        if batch == "intel":
-            return (
-                f"{who} is looking at intel cards now. "
-                "Click Continue once to skip ahead to when they have finished every peek."
-            )
-        if batch == "posture":
-            return (
-                f"{who} is choosing a posture now. "
-                "Click Continue once to let them finish that pick."
-            )
-        if batch == "squadrons":
-            return (
-                f"{who} is picking and placing squadron cards now. "
-                "Click Continue once to skip ahead to when they have chosen them all."
-            )
-        if batch == "enablers":
-            return (
-                f"{who} is picking enabler cards now. "
-                "Click Continue once to skip ahead to when their hand is full."
-            )
-        if batch == "bid":
-            return (
-                f"{who} is finishing setup (initiative bid) now. "
-                "Click Continue once to let that resolve."
-            )
         return (
-            f"{who} is taking several setup picks now. "
-            "Click Continue to skip ahead to when they have chosen everything."
+            f"{status}. "
+            "You are not stuck — one Continue jumps through this whole stretch."
         )
     events = _latest_step(view)
-    parts: list[str] = []
+    detail = ""
     for ev in events:
         if ev.type == "token_winchester" or "winchester" in ev.message.lower():
             if ev.side == view.viewer:
-                parts.append(
-                    "Winchester. Your aircraft is out of weapons. It cannot move "
-                    "on its own. At the start of your next turn it flies home and "
-                    "re-arms next cycle."
+                detail = (
+                    "Your aircraft cannot move on its own. At the start of your next "
+                    "turn it flies home and re-arms next cycle."
                 )
             else:
-                who = ev.side or "The opponent"
-                parts.append(
-                    f"Winchester. {who}'s aircraft is out of weapons. It flies "
-                    "home at the start of that side's next turn."
+                detail = (
+                    f"{ev.side or who}'s aircraft flies home at the start of that "
+                    "side's next turn."
                 )
             break
-    # After a draft streak, initiative/cyber often share the last pick's step —
-    # name the setup roll so it does not read like another single card Continue.
-    if not parts:
-        for ev in events:
-            if ev.type != "dice":
-                continue
-            msg = (ev.message or "").lower()
-            if "initiative" in msg:
-                parts.append(
-                    "Initiative is decided. "
-                    + (ev.message or "").strip().rstrip(".")
-                    + "."
-                )
-                break
-            if "cyber" in msg:
-                parts.append((ev.message or "").strip().rstrip(".") + ".")
-                break
-    # Moves: say so even when the log label is fogged, and point at the trail.
-    if not parts:
+    if not detail:
         for ev in events:
             data = ev.data or {}
             is_move = (
@@ -554,26 +610,22 @@ def _watch_notice(view: GameView) -> str:
             )
             if not is_move:
                 continue
-            who = ev.side or "The opponent"
             src = data.get("from_band")
             dst = data.get("to_band") or data.get("band")
             if isinstance(src, str) and isinstance(dst, str) and src and dst and src != dst:
-                parts.append(
-                    f"{who} moved a piece. Follow the yellow trail from "
-                    f"{_band_short(src)} to {_band_short(dst)}."
+                detail = (
+                    f"Follow the yellow trail from {_band_short(src)} to "
+                    f"{_band_short(dst)}."
                 )
             else:
-                parts.append(f"{who} moved a piece on the board.")
+                detail = "Look for the yellow mark on the board."
             break
-    if not parts:
-        for ev in reversed(events):
-            if ev.type == "decision":
-                parts.append(_plain(ev.message) + ".")
-                break
-    if not parts:
-        parts.append("Look at what just changed on the board.")
-    parts.append("Click Continue when you have seen it.")
-    return " ".join(parts)
+    if not detail:
+        detail = (
+            f"Each Continue advances one {who} decision. Keep clicking until "
+            "their turn ends or your choices return."
+        )
+    return f"{status}. {detail} Click Continue when you have seen it."
 
 
 def _band_short(band: str) -> str:
@@ -592,7 +644,7 @@ def _now(view: GameView) -> str:
     if view.roll_pending:
         return "Click the die."
     if view.watch_pending:
-        return ""
+        return _watch_status(view)
     if view.terminal:
         vp = view.status.vp
         cyber = view.status.cyber
@@ -1294,6 +1346,8 @@ def explain(view: GameView) -> CoachNote:
             cards = w_cards
         if w_tokens:
             tokens = w_tokens
+        who = watch_side or _watch_opponent(view)
+        title = f"Watching {who}"
     return CoachNote(
         revision=view.revision,
         concept=concept,
