@@ -210,6 +210,8 @@ class GameSession:
         self._handoff_armed = False
         self._human_saw_player_turn = False
         self.score_reports: list[ScoreReportView] = []
+        # Cache for count_watch_continues_remaining (revision + hold flags).
+        self._watch_continues_cache: Optional[tuple[tuple, int]] = None
         # Hotseat: the side currently allowed to see private state.
         node = self._node
         self.authorized_viewer: Optional[Side] = node.side if node else None
@@ -750,6 +752,7 @@ class GameSession:
         if not self.watch_pending:
             raise SessionError("nothing to continue")
         self.watch_pending = False
+        self._watch_continues_cache = None
         if self.draft_skip_pending:
             self.draft_skip_pending = False
             self._skip_draft_batch = True
@@ -769,6 +772,81 @@ class GameSession:
                 and not self._handoff_armed):
             return
         self.advance_until_human()
+
+    def _human_choices_ready(self) -> bool:
+        """True when the human would see a decision panel (no Continue / Roll hold)."""
+        node = self._node
+        if node is None:
+            return True
+        if self._agent_for(node) is not None:
+            return False
+        if self.watch_pending or self.roll_pending:
+            return False
+        return node.side == self.human_side
+
+    def _fork_for_pace_sim(self) -> "GameSession":
+        """Replay tape into a disposable session with the same pacing flags."""
+        if not self.recording:
+            raise SessionError("pace sim needs a recording tape")
+        sim = GameSession.from_save(
+            f"{self.game_id}-pace-sim",
+            self.export_save(),
+            openai_api_key=self._openai_api_key,
+        )
+        sim._handoff_armed = self._handoff_armed
+        sim._human_saw_player_turn = self._human_saw_player_turn
+        sim._skip_draft_batch = self._skip_draft_batch
+        sim._watch_batch_nodes = self._watch_batch_nodes
+        sim._last_choice_kind = self._last_choice_kind
+        return sim
+
+    def count_watch_continues_remaining(self, max_clicks: int = 200) -> Optional[int]:
+        """How many Continue clicks until the human's choices return.
+
+        Dry-runs a fork: each Continue is counted; opponent dice rolls are not
+        (those use the die UI). Returns None when paced watch does not apply.
+        """
+        if self.mode != GameMode.HUMAN_V_AGENT or not self.paced:
+            return None
+        if not self.watch_pending:
+            return 0 if self._human_choices_ready() else None
+        if not self.recording:
+            return None
+        key = (
+            self.revision,
+            self.watch_pending,
+            self.roll_pending,
+            self.draft_skip_pending,
+            self.watch_batch,
+            self._handoff_armed,
+            self._human_saw_player_turn,
+            self._skip_draft_batch,
+        )
+        if self._watch_continues_cache and self._watch_continues_cache[0] == key:
+            return self._watch_continues_cache[1]
+        try:
+            sim = self._fork_for_pace_sim()
+        except SessionError:
+            return None
+        clicks = 0
+        for _ in range(max_clicks):
+            if sim._human_choices_ready():
+                break
+            if sim.roll_pending:
+                sim.reveal_roll()
+                continue
+            if sim.watch_pending:
+                before_rev = sim.revision
+                sim.continue_watch()
+                clicks += 1
+                # Handoff gate / no-op Continue — stop rather than spin.
+                if sim.revision == before_rev and sim.watch_pending is False \
+                        and not sim._human_choices_ready() and not sim.roll_pending:
+                    break
+                continue
+            break
+        self._watch_continues_cache = (key, clicks)
+        return clicks
 
     # -- hotseat ---------------------------------------------------------------
 

@@ -290,5 +290,6 @@ def _coach(game_id: str) -> dict:
         session = _get_session(game_id)
     except KeyError:
         return _err(404, f"no game '{game_id}'")
-    note = explain(session.state())
+    remaining = session.count_watch_continues_remaining()
+    note = explain(session.state(), watch_continues_remaining=remaining)
     return _ok(_dump(note))

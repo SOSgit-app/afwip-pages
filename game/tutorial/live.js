@@ -879,7 +879,13 @@
     }
     const side = (data.watch_side || "").toUpperCase();
     watchStatus.className = side === "US" || side === "PRC" ? "side-" + side.toLowerCase() : "";
-    watchStatus.textContent = data.now;
+    let text = data.now;
+    const left = data.watch_continues_remaining;
+    if (typeof left === "number" && left > 0 && text.indexOf("until your turn") < 0) {
+      text += " · " + left + (left === 1 ? " Continue" : " Continues") + " until your turn";
+    }
+    watchStatus.textContent = text;
+    watchStatus.title = text;
     watchStatus.hidden = false;
     document.body.classList.add("afwip-watch-status");
   }

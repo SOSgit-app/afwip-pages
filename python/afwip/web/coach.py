@@ -6,6 +6,8 @@ player is one side, and the note says why the choice in front of them matters.
 
 from __future__ import annotations
 
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 from afwip.core.cards import ENABLER_REGISTRY, SQUADRON_REGISTRY
@@ -35,6 +37,8 @@ class CoachNote(BaseModel):
     watch_uids: list[int] = Field(default_factory=list)
     # Move trail: [from_band, to_band] when the held step relocated a token.
     watch_trail: list[str] = Field(default_factory=list)
+    # Continues left (including this click) until the human's choices return.
+    watch_continues_remaining: Optional[int] = None
 
 
 _LESSONS: dict[str, tuple[str, str, str]] = {
@@ -1328,7 +1332,10 @@ def _suggest(view: GameView) -> str:
     return _say(choices[0], "This is a legal choice for the step in front of you.")
 
 
-def explain(view: GameView) -> CoachNote:
+def explain(
+    view: GameView,
+    watch_continues_remaining: Optional[int] = None,
+) -> CoachNote:
     """Teaching note for whatever the spectator is looking at right now."""
     concept = _concept(view)
     title, lesson, look = _LESSONS[concept]
@@ -1338,6 +1345,7 @@ def explain(view: GameView) -> CoachNote:
     watch_bands: list[str] = []
     watch_uids: list[int] = []
     watch_trail: list[str] = []
+    now = _now(view)
     if view.watch_pending:
         watch_side, w_cards, w_tokens, watch_labels, watch_bands, watch_uids, watch_trail = (
             _watch_focus(view)
@@ -1348,12 +1356,15 @@ def explain(view: GameView) -> CoachNote:
             tokens = w_tokens
         who = watch_side or _watch_opponent(view)
         title = f"Watching {who}"
+        if watch_continues_remaining is not None and watch_continues_remaining > 0:
+            unit = "Continue" if watch_continues_remaining == 1 else "Continues"
+            now = f"{now} · {watch_continues_remaining} {unit} until your turn"
     return CoachNote(
         revision=view.revision,
         concept=concept,
         title=title,
         lesson=lesson,
-        now=_now(view),
+        now=now,
         why=_why(view, concept),
         just=_just(view),
         look=look,
@@ -1366,4 +1377,5 @@ def explain(view: GameView) -> CoachNote:
         watch_bands=watch_bands,
         watch_uids=watch_uids,
         watch_trail=watch_trail,
+        watch_continues_remaining=watch_continues_remaining,
     )
