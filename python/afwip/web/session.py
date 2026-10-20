@@ -524,9 +524,9 @@ class GameSession:
             # Pause for the die screen on setup dice and on action dice
             # (acquire / to-hit / damage), including when the AI is rolling in
             # Practice vs Agent so the spectator can watch the tumble.
-            # Tutorial (paced + tutorial agent): auto-resolve PRC dice — no die
-            # click — then fall through to Continue holds so the board result
-            # is still paced without interrupting the Continue rhythm.
+            # Tutorial (paced + tutorial agent): auto-resolve PRC-only dice, but
+            # shared rolls (initiative, Play Intel, …) still use the die UI so
+            # the student throws for both sides.
             if self._last_step_setup_dice or self._last_step_rolled:
                 nxt = self._node
                 batch = self._watch_batch_nodes
@@ -552,6 +552,7 @@ class GameSession:
                     self.paced
                     and self.agent_name == "tutorial"
                     and self.mode == GameMode.HUMAN_V_AGENT
+                    and not self._last_step_shared_dice()
                 )
                 if not tutorial_auto_ai_dice:
                     self.roll_pending = True
@@ -781,6 +782,22 @@ class GameSession:
                 and not self._handoff_armed):
             return
         self.advance_until_human()
+
+    def _last_step_shared_dice(self) -> bool:
+        """True if the just-applied step's dice include both US and PRC.
+
+        Initiative bids and Play Intel are shared rolls — the student should
+        click the die even when the AI's draft pick was what triggered them.
+        """
+        step = self.decision_no - 1
+        sides: set[str] = set()
+        for ev in self.recorder.events:
+            if ev.step != step or ev.type != "dice":
+                continue
+            for roll in (ev.data or {}).get("rolls") or []:
+                if isinstance(roll, dict) and roll.get("side") in ("US", "PRC"):
+                    sides.add(str(roll["side"]))
+        return "US" in sides and "PRC" in sides
 
     def _human_choices_ready(self) -> bool:
         """True when the human would see a decision panel (no Continue / Roll hold)."""
