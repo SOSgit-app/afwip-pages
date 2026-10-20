@@ -40,14 +40,13 @@
   const art = dock.querySelector("#live-art");
   const title = dock.querySelector("#live-title");
   const suggest = dock.querySelector("#live-suggest");
-  // Tutorial: PRC turns auto-advance slowly. Pause freezes the next step.
-  const WATCH_STEP_MS = 2200;
-  const PAUSE_KEY = "afwip_watch_paused";
+  // Tutorial: PRC turns auto-advance on a fixed look window. Pause freezes.
+  const WATCH_STEP_MS = 5000;
   let watchPending = false;
   let watchTimer = null;
+  let watchTimerRev = null;
   let watchAdvancing = false;
   let watchPaused = false;
-  try { watchPaused = localStorage.getItem(PAUSE_KEY) === "1"; } catch (e) {}
 
   const pauseBtn = document.createElement("button");
   pauseBtn.id = "live-pause";
@@ -87,10 +86,9 @@
   }
   function setWatchPaused(on) {
     watchPaused = !!on;
-    try { localStorage.setItem(PAUSE_KEY, watchPaused ? "1" : "0"); } catch (e) {}
     paintPauseBtn();
     if (watchPaused) clearWatchTimer();
-    else scheduleWatchAdvance();
+    else scheduleWatchAdvance(true);
   }
   function paintPauseBtn() {
     if (!watchPending) {
@@ -107,7 +105,7 @@
       pauseBtn.title = "Resume watching the other side";
     } else {
       pauseBtn.textContent = "Pause";
-      pauseBtn.title = "Pause their turn so you can look at the board";
+      pauseBtn.title = "Pause for 5 seconds of look time between their steps";
     }
   }
   function clearWatchTimer() {
@@ -115,12 +113,23 @@
       window.clearTimeout(watchTimer);
       watchTimer = null;
     }
+    watchTimerRev = null;
   }
-  function scheduleWatchAdvance() {
+  function scheduleWatchAdvance(force) {
+    if (!watchPending || watchPaused || rolling()) {
+      if (!watchPending || watchPaused) clearWatchTimer();
+      return;
+    }
+    if (watchAdvancing) return;
+    const game = readGame();
+    const rev = game ? game.rev : null;
+    // Keep the 5s look window — do not restart it on every coach refresh.
+    if (!force && watchTimer != null && watchTimerRev === rev) return;
     clearWatchTimer();
-    if (!watchPending || watchPaused || watchAdvancing || rolling()) return;
+    watchTimerRev = rev;
     watchTimer = window.setTimeout(() => {
       watchTimer = null;
+      watchTimerRev = null;
       advanceWatch();
     }, WATCH_STEP_MS);
   }
@@ -141,17 +150,18 @@
       lastSig = null;
       if (wanted()) await refresh(true);
       else placeChrome();
-      if (watchPending) scheduleWatchAdvance();
     } catch (e) {
       return;
     } finally {
       watchAdvancing = false;
     }
+    // Schedule after clearing watchAdvancing — otherwise the next step never arms.
+    if (watchPending && !watchPaused && !rolling()) scheduleWatchAdvance(true);
   }
   function hintFor(data) {
     if (data.hold === "watch") {
       if (watchPaused) return "Paused — click Resume when you are ready.";
-      return "Watching their turn — yellow marks each step. Pause anytime.";
+      return "Watching their turn — about 5 seconds per step. Pause anytime.";
     }
     if (dieNote(data) || rolling()) return "Click the die.";
     const label = quotedPick(data.suggest || "");
@@ -295,7 +305,7 @@
     if (data.hold === "watch") dock.classList.add("live-watch");
     else dock.classList.remove("live-watch");
     syncWatchStatus(data);
-    if (watchPending) scheduleWatchAdvance();
+    if (watchPending) scheduleWatchAdvance(false);
     else clearWatchTimer();
     lesson.textContent = "";
     lesson.hidden = true;
@@ -712,7 +722,7 @@
       const view = await res.json();
       watchPending = !!view.watch_pending;
       paintPauseBtn();
-      if (watchPending) scheduleWatchAdvance();
+      if (watchPending) scheduleWatchAdvance(false);
       else clearWatchTimer();
     } catch (e) {
       return;
