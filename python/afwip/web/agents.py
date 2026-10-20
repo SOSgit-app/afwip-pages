@@ -164,12 +164,86 @@ class PolicyAgent:
         return min(idx, len(choices) - 1)
 
 
+class TutorialAgent:
+    """Easy policy for the live Tutorial, steered so the lesson is USING US
+    squadrons — not watching PRC erase them on the airbase.
+
+    Blocks heavy airbase-wipe enablers, prefers VP boxes over squadron-card
+    damage, and holds base bombing / early air-to-air until the student has
+    launched enough aircraft to practice with.
+    """
+
+    name = "tutorial"
+
+    # Enablers that dump damage onto home squadron cards (or erase the base).
+    _HARD_LABELS = (
+        "HYPERSONIC",
+        "BALLISTIC MISSILE",
+        "SEA DRAGONS",
+        "LAND ATTACK CRUISE",
+        "TOMAHAWK",
+        "PLANMC",
+        "HIMARS",
+        "HIGH MOBILITY ARTILLERY",
+    )
+
+    # Let the student get aircraft airborne before PRC starts hunting them.
+    _LAUNCH_BEFORE_AIR = 1
+    _LAUNCH_BEFORE_BASE = 2
+
+    def __init__(self) -> None:
+        self._policy = PolicyAgent("easy", deterministic=False)
+
+    @staticmethod
+    def _us_launched(context: Optional[dict]) -> int:
+        eng = (context or {}).get("engine")
+        if eng is None:
+            return 99
+        try:
+            return sum(
+                1 for sq in eng.state.player(Side.US).squadrons.values()
+                if sq.ever_activated and not sq.is_destroyed
+            )
+        except Exception:
+            return 99
+
+    def _is_hard(self, choice: Choice, launched: int) -> bool:
+        label = (choice.label or "").upper()
+        if any(h in label for h in self._HARD_LABELS):
+            return True
+        # Prefer airbase VP boxes over deleting the cards the lesson needs.
+        if choice.alloc_kind == "squadron":
+            return True
+        if choice.kind == "shoot_surface" and launched < self._LAUNCH_BEFORE_BASE:
+            return True
+        if choice.kind == "shoot_air" and launched < self._LAUNCH_BEFORE_AIR:
+            return True
+        return False
+
+    def choose(self, observation: Callable[[], Any],
+               choices: list[Choice], rng: random.Random,
+               context: Optional[dict] = None) -> int:
+        if len(choices) == 1:
+            return 0
+        launched = self._us_launched(context)
+        soft = [
+            i for i, c in enumerate(choices)
+            if not self._is_hard(c, launched)
+        ]
+        idx = self._policy.choose(observation, choices, rng, context=context)
+        if soft and idx not in soft:
+            # Policy wanted a wipe — take a teaching-safe action instead.
+            return soft[rng.randrange(len(soft))]
+        return idx
+
+
 AGENT_REGISTRY: dict[str, Callable[[], Agent]] = {
     "random": RandomAgent,
     "gpt": LLMAgent,               # OpenAI doctrine player (needs OPENAI_API_KEY)
     "policy-easy": lambda: PolicyAgent("easy"),      # trained AI opponents (ONNX)
     "policy-medium": lambda: PolicyAgent("medium"),
     "policy-best": lambda: PolicyAgent("best"),
+    "tutorial": TutorialAgent,     # live Tutorial: easy AI without early missile wipe
 }
 
 

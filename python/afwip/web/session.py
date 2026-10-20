@@ -446,7 +446,10 @@ class GameSession:
         context = {"side": node.side.value,
                    "setup": self.env.engine.state.phase != Phase.PLAYER_TURN,
                    "state_text": lambda: llm_state_text(self.env.engine, node,
-                                                        node.side)}
+                                                        node.side),
+                   # TutorialAgent uses this to delay base/air wipes until the
+                   # student has launched enough squadrons to practice with.
+                   "engine": self.env.engine}
         idx = agent.choose(lambda: self.env.observe(node.side.value),
                            node.choices, self.agent_rng, context=context)
         self._step(idx, justification=getattr(agent, "last_justification", None))
