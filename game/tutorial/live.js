@@ -696,12 +696,24 @@
     render(data, first);
   }
 
+  // While Continue is up, ignore choice clicks so a queued/stale click cannot
+  // submit Pass / end turn underneath the hold.
+  document.addEventListener("click", (ev) => {
+    if (continueBtn.hidden) return;
+    const btn = ev.target && ev.target.closest && ev.target.closest(".choice-btn");
+    if (!btn) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    ev.stopImmediatePropagation();
+  }, true);
+
   continueBtn.addEventListener("click", async () => {
     const game = readGame();
     if (!game || typeof window.__afwipApply !== "function") return;
     continueBtn.disabled = true;
     clearWatchHits();
     try {
+      // /watch only — never POST /choices. Continue cannot Pass / end turn.
       const res = await fetch("/api/games/" + game.id + "/watch", { method: "POST" });
       if (!res.ok) return;
       const view = await res.json();

@@ -1217,12 +1217,15 @@ class RulesEngine:
         legal band from the token's spawn set is used. Contingency-Location
         squadrons roll to see how many tokens generate; the rest stay grounded.
 
-        Activating a squadron ends the player's turn.
+        Activation is mutually exclusive with Move-Acquire-Shoot. It does not
+        end the turn by itself: the player may still play one enabler (if they
+        have not already), then pass to hand off.
         """
         player = self._require_turn(side)
         # "Do one or the other: Activate a Squadron Card / Move-Acquire-Shoot"
-        # — mutually exclusive within a turn (activation also ends the turn,
-        # so the reverse order is impossible by construction).
+        # — mutually exclusive within a turn. At most one squadron per turn.
+        if player.squadrons_activated_this_turn:
+            raise IllegalAction("Already activated a squadron this turn")
         if player.has_moved or player.has_acquired or player.has_shot:
             raise IllegalAction(
                 "Activating a squadron and Move-Acquire-Shoot are mutually exclusive this turn"
@@ -1291,9 +1294,9 @@ class RulesEngine:
         squad.zone = CardZone.ACTIVE
         player.squadrons_activated_this_turn.append(card_id)
         self.state.record_action(side)
-
-        # Generating forces ends the turn.
-        self.end_turn(side)
+        # Turn stays open so an unused enabler can still be played; the player
+        # then passes. A failed recovered reactivation (_break_recovered_squadron)
+        # still ends the turn immediately.
         return tokens
 
     def _break_recovered_squadron(self, side: Side, squad) -> list[TokenInstance]:
@@ -1302,7 +1305,7 @@ class RulesEngine:
         every aircraft it would have fielded is "broken" and surrendered to the
         opponent for points as an on-ground kill. The Squadron Card itself is
         NOT scored — it is simply removed from play (destroyed a second time).
-        Like any activation, this ends the turn.
+        A failed reactivation ends the turn (nothing was fielded to act with).
         """
         opp = self.state.opponent(side)
         profile = TOKEN_REGISTRY[squad.token_type]
@@ -1348,7 +1351,8 @@ class RulesEngine:
             (Winchester cleared), no longer acquired (face-down again), at the
             side's front band.
         A relaunch is the player's turn action: mutually exclusive with the
-        Move-Acquire-Shoot cycle, and it ends the turn like activating a squadron.
+        Move-Acquire-Shoot cycle, and it ends the turn immediately (a normal
+        squadron activation does not — that still allows one unused enabler).
         A fighter may attempt a relaunch every time it returns Winchester.
         """
         player = self._require_turn(side)
@@ -1406,6 +1410,10 @@ class RulesEngine:
         Winchester off-board relocation at start of turn stays free movement.
         """
         player = self._require_turn(side)
+        if player.squadrons_activated_this_turn:
+            raise IllegalAction(
+                "Activating a squadron and Move-Acquire-Shoot are mutually exclusive this turn"
+            )
         if player.has_moved:
             raise IllegalAction("Already moved a token this turn")
         token = self._own_token(player, token_uid)
@@ -1452,6 +1460,10 @@ class RulesEngine:
         Move-Acquire-Shoot may be taken in any order (user ruling 2026-07-31).
         """
         player = self._require_turn(side)
+        if player.squadrons_activated_this_turn:
+            raise IllegalAction(
+                "Activating a squadron and Move-Acquire-Shoot are mutually exclusive this turn"
+            )
         if player.has_acquired:
             raise IllegalAction("Already acquired this turn")
         acquirer = self._own_token(player, acquirer_uid)
@@ -1505,6 +1517,10 @@ class RulesEngine:
         disadvantage falls on the hit roll only.
         """
         player = self._require_turn(side)
+        if player.squadrons_activated_this_turn:
+            raise IllegalAction(
+                "Activating a squadron and Move-Acquire-Shoot are mutually exclusive this turn"
+            )
         if player.has_shot:
             raise IllegalAction("Already shot this turn")
         attacker = self._own_token(player, attacker_uid)
@@ -1600,6 +1616,10 @@ class RulesEngine:
         (consuming one of its air salvos).
         """
         player = self._require_turn(side)
+        if player.squadrons_activated_this_turn:
+            raise IllegalAction(
+                "Activating a squadron and Move-Acquire-Shoot are mutually exclusive this turn"
+            )
         if player.has_shot:
             raise IllegalAction("Already shot this turn")
         attacker = self._own_token(player, attacker_uid)
@@ -3349,17 +3369,21 @@ class RulesEngine:
 
         player = self.state.player(side)
         opp = self.state.opponent(side)
-        actions: list[LegalAction] = [LegalAction("pass", label="Pass / end turn")]
+        # Pass is listed last so a stale/double click on index 0 after a band
+        # pick cannot accidentally end the turn.
+        actions: list[LegalAction] = []
 
-        # Activate a squadron (ends the turn). Mutually exclusive with the
-        # Move-Acquire-Shoot cycle: not offered once any MAS action was taken.
-        if not (player.has_moved or player.has_acquired or player.has_shot):
+        # Activate a squadron. Mutually exclusive with Move-Acquire-Shoot and
+        # with a second activation; after launch the turn stays open for an
+        # unused enabler (then pass).
+        activated = bool(player.squadrons_activated_this_turn)
+        if not activated and not (player.has_moved or player.has_acquired or player.has_shot):
             for squad in player.squadrons.values():
                 if not squad.activated and not squad.is_destroyed and squad.zone == CardZone.SELECTED:
                     actions.append(LegalAction("activate", card_id=squad.card_id,
                                                label=f"Activate {squad.profile.name} ({squad.token_type.value})"))
             # Relaunch a Winchester fighter that returned to a live squadron
-            # (FAQ 2026-07-24) — a turn action, like activating; ends the turn.
+            # (FAQ 2026-07-24) — a turn action; ends the turn immediately.
             for uid in self.relaunch_candidates(side):
                 tok = player.tokens[uid]
                 actions.append(LegalAction("relaunch", token_uid=uid,
@@ -3370,7 +3394,8 @@ class RulesEngine:
         # ruling 2026-07-31). Ships move too now (Move Range 1, on-map bands;
         # reverting the 2026-07-14 no-move ruling). Tokens of a destroyed squadron
         # keep flying until Winchester (ruling 2026-07-17), so they stay eligible.
-        if not player.has_moved:
+        # Not offered after a squadron activation this turn.
+        if not activated and not player.has_moved:
             for tok in player.living_tokens():
                 if tok.grounded or tok.is_winchester:
                     continue
@@ -3386,7 +3411,7 @@ class RulesEngine:
 
         # Acquire — one per turn, in any order. Grounded enemy tokens cannot be
         # acquired (ADA excepted).
-        if not player.has_acquired:
+        if not activated and not player.has_acquired:
             for acq in player.living_tokens():
                 if acq.grounded or acq.profile.acquire_range is None:
                     continue
@@ -3402,7 +3427,7 @@ class RulesEngine:
                                                          f"with #{acq.uid}"))
 
         # Shoot.
-        if not player.has_shot:
+        if not activated and not player.has_shot:
             for atk in player.living_tokens():
                 if atk.grounded:
                     continue
@@ -3453,6 +3478,7 @@ class RulesEngine:
                 actions.append(LegalAction("play_enabler", card_id=card.card_id,
                                            play=self._default_enabler_play(side, card.card_id),
                                            label=f"Play enabler: {profile.name}"))
+        actions.append(LegalAction("pass", label="Pass / end turn"))
         return actions
 
     def _default_enabler_play(self, side: Side, card_id: int) -> EnablerPlay:

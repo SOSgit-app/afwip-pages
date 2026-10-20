@@ -204,6 +204,11 @@ class GameSession:
         self._last_choice_kind = ""
         self._last_step_rolled = False
         self._last_step_setup_dice = False
+        # Paced tutorial: opponent's full TURN_ACTION may run only after the
+        # human explicitly passed (or a rules-forced end_turn). Continue alone
+        # must never arm this.
+        self._handoff_armed = False
+        self._human_saw_player_turn = False
         self.score_reports: list[ScoreReportView] = []
         # Hotseat: the side currently allowed to see private state.
         node = self._node
@@ -488,6 +493,21 @@ class GameSession:
                 self._skip_draft_batch = False
                 self._watch_batch_nodes = None
                 self.watch_batch = ""
+                # Back on the human's player turn — they must Pass again to hand off.
+                if (node.node_type == NodeType.TURN_ACTION
+                        and self.env.engine.state.phase == Phase.PLAYER_TURN
+                        and node.side == self.human_side):
+                    self._human_saw_player_turn = True
+                    self._handoff_armed = False
+                return
+            # Paced tutorial: do not play the opponent's full turn until the
+            # human has explicitly handed off (Pass / forced end). Continue
+            # must not walk into their TURN_ACTION otherwise.
+            if (self.paced
+                    and node.node_type == NodeType.TURN_ACTION
+                    and self.env.engine.state.phase == Phase.PLAYER_TURN
+                    and self._human_saw_player_turn
+                    and not self._handoff_armed):
                 return
             batch = _batch_group(node.node_type)
             if self.paced and not self._skip_draft_batch and batch is not None:
@@ -580,6 +600,10 @@ class GameSession:
         node = self._node
         if node is None:
             raise SessionError("game is over")
+        # Continue hold must not be bypassed by a queued choice click
+        # (a stale Pass after spawn was ending the turn before the student meant to).
+        if self.watch_pending:
+            raise SessionError("click Continue before choosing again")
         if revision is not None and revision != self.revision:
             raise StaleStateError(
                 f"stale revision {revision} (current {self.revision})")
@@ -599,9 +623,24 @@ class GameSession:
             if node.side != actor_side:
                 raise SessionError(f"not {actor_side.value}'s decision")
         acted = node.node_type
+        acting_side = node.side
+        if (acted == NodeType.TURN_ACTION
+                and self.env.engine.state.phase == Phase.PLAYER_TURN
+                and acting_side == self.human_side):
+            self._human_saw_player_turn = True
+        before_active = self.env.engine.state.active_side
         self.roll_pending = False            # reflect only the action just taken
         self._step(index, justification=justification)
         self._human_choices.append(index)
+        # Arm opponent's full turn only on an explicit Pass (or a rules-forced
+        # end_turn). Continue never sets this flag.
+        if self._last_choice_kind == "pass":
+            self._handoff_armed = True
+        elif (self.env.engine.state.phase == Phase.PLAYER_TURN
+              and before_active == acting_side
+              and self.env.engine.state.active_side != acting_side):
+            # Relaunch / failed recovered activation / IllegalAction end_turn.
+            self._handoff_armed = True
         # Hold the outcome until the human clicks the die. Action dice pause in
         # every human mode. Setup dice (initiative, the cyber raise, intel)
         # pause in player-vs-AI as well, including when this choice caused them.
@@ -618,6 +657,7 @@ class GameSession:
                 noop = self._last_choice_kind in _PACE_WATCH_SKIP_KINDS
                 if still_yours:
                     # Activate → choose band, enabler → branch, etc.
+                    # Never hide Pass behind Continue after a launch.
                     return
                 if noop:
                     # Pass / end turn: hold so the student sees that choice
@@ -700,6 +740,10 @@ class GameSession:
     def continue_watch(self) -> None:
         """Leave the tutorial's hold and play the next opponent decision.
 
+        Continue never submits Pass / end turn for the human. If the next node
+        is still theirs, the hold simply clears so their choices reappear. The
+        opponent's full turn runs only when `_handoff_armed` (explicit Pass).
+
         If the hold was a batch announcement (draft stretch, intel peeks, …),
         run every remaining node in that batch before pausing again.
         """
@@ -710,8 +754,21 @@ class GameSession:
             self.draft_skip_pending = False
             self._skip_draft_batch = True
             # `_watch_batch_nodes` / `watch_batch` stay set until the streak ends.
-        if self.mode == GameMode.HUMAN_V_AGENT:
-            self.advance_until_human()
+        if self.mode != GameMode.HUMAN_V_AGENT:
+            return
+        node = self._node
+        # Still the human's decision — do not advance the AI or pass for them.
+        if node is not None and self._agent_for(node) is None:
+            return
+        # Opponent's full turn without an armed handoff: refuse to play it.
+        if (self.paced
+                and node is not None
+                and node.node_type == NodeType.TURN_ACTION
+                and self.env.engine.state.phase == Phase.PLAYER_TURN
+                and self._human_saw_player_turn
+                and not self._handoff_armed):
+            return
+        self.advance_until_human()
 
     # -- hotseat ---------------------------------------------------------------
 
