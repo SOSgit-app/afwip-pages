@@ -113,7 +113,7 @@
 
   // Bump when Python sources change so GitHub Pages / browser caches cannot
   // keep serving a stale stub or env.py.
-  const PYTHON_CACHE = "continue-count-fix";
+  const PYTHON_CACHE = "tutorial-auto-prc-dice";
 
   async function writeTree(pyodideInst, manifest, rootUrl) {
     for (const rel of manifest) {
