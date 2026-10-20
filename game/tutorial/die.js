@@ -49,6 +49,7 @@
 
   function autoDelay(kind) {
     const sel = [...document.querySelectorAll(".topbar select")].find((el) => {
+      if (el.id === "live-watch-speed") return false;
       const text = ((el.selectedOptions[0] && el.selectedOptions[0].textContent) || el.value || "").toLowerCase();
       return text.indexOf("slow") >= 0 || text.indexOf("normal") >= 0 || text.indexOf("fast") >= 0;
     });

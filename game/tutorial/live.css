@@ -99,7 +99,8 @@
   font-size: 12px;
 }
 .live-suggest[hidden] { display: none; }
-#live-pause {
+#live-pause,
+#live-watch-speed {
   margin: 0;
   display: inline-block;
   background: #1c2333;
@@ -114,7 +115,29 @@
   cursor: pointer;
   font-family: "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
 }
-#live-pause:hover { background: #243044; border-color: #ffd166; }
+#live-pause:hover,
+#live-watch-speed:hover { background: #243044; border-color: #ffd166; }
+#live-watch-speed {
+  padding-right: 28px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #ffe7a8 50%),
+    linear-gradient(135deg, #ffe7a8 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 55%,
+    calc(100% - 9px) 55%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+#live-watch-speed:focus {
+  outline: 2px solid rgba(255, 209, 102, 0.55);
+  outline-offset: 1px;
+}
+#live-watch-speed option {
+  background: #1c2333;
+  color: #ffe7a8;
+}
 #live-pause.is-paused {
   background: #ffd166;
   color: #1a1404;
@@ -122,7 +145,8 @@
   animation: live-pause-blink 1s ease-in-out infinite;
 }
 #live-pause.is-paused:hover { background: #ffe7a8; }
-#live-pause[hidden] { display: none; }
+#live-pause[hidden],
+#live-watch-speed[hidden] { display: none; }
 @keyframes live-pause-blink {
   0%, 100% { box-shadow: 0 0 0 0 rgba(255, 209, 102, 0); }
   50% { box-shadow: 0 0 14px 3px rgba(255, 209, 102, 0.55); }

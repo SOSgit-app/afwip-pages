@@ -40,8 +40,23 @@
   const art = dock.querySelector("#live-art");
   const title = dock.querySelector("#live-title");
   const suggest = dock.querySelector("#live-suggest");
-  // Tutorial: PRC turns auto-advance on a fixed look window. Pause freezes.
-  const WATCH_STEP_MS = 5000;
+  // Tutorial: PRC turns auto-advance on a look window. Pause freezes.
+  const WATCH_SPEED_KEY = "afwip.live.watchSpeed";
+  const WATCH_SPEEDS = { slow: 8000, medium: 5000, fast: 3000 };
+  function readWatchSpeed() {
+    try {
+      const v = localStorage.getItem(WATCH_SPEED_KEY);
+      if (v && WATCH_SPEEDS[v]) return v;
+    } catch (e) {}
+    return "medium";
+  }
+  function watchStepMs() {
+    return WATCH_SPEEDS[readWatchSpeed()] || WATCH_SPEEDS.medium;
+  }
+  function watchSpeedLabel() {
+    const sec = Math.round(watchStepMs() / 1000);
+    return sec + " second" + (sec === 1 ? "" : "s");
+  }
   let watchPending = false;
   let watchTimer = null;
   let watchTimerRev = null;
@@ -53,6 +68,18 @@
   pauseBtn.type = "button";
   pauseBtn.hidden = true;
   document.body.append(pauseBtn);
+  const speedSel = document.createElement("select");
+  speedSel.id = "live-watch-speed";
+  speedSel.setAttribute("aria-label", "Watch speed");
+  speedSel.hidden = true;
+  [["slow", "Slow"], ["medium", "Medium"], ["fast", "Fast"]].forEach(([value, label]) => {
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = label;
+    speedSel.append(opt);
+  });
+  speedSel.value = readWatchSpeed();
+  document.body.append(speedSel);
   const why = dock.querySelector("#live-why");
   const now = dock.querySelector("#live-now");
   const lesson = dock.querySelector("#live-lesson");
@@ -93,19 +120,23 @@
   function paintPauseBtn() {
     if (!watchPending) {
       pauseBtn.hidden = true;
+      speedSel.hidden = true;
       pauseBtn.textContent = "Pause";
       pauseBtn.title = "";
       pauseBtn.classList.remove("is-paused");
       return;
     }
     pauseBtn.hidden = false;
+    speedSel.hidden = false;
+    speedSel.value = readWatchSpeed();
+    speedSel.title = "Look time between their steps (" + watchSpeedLabel() + ")";
     pauseBtn.classList.toggle("is-paused", watchPaused);
     if (watchPaused) {
       pauseBtn.textContent = "Resume";
       pauseBtn.title = "Resume watching the other side";
     } else {
       pauseBtn.textContent = "Pause";
-      pauseBtn.title = "Pause for 5 seconds of look time between their steps";
+      pauseBtn.title = "Pause — currently " + watchSpeedLabel() + " between their steps";
     }
   }
   function clearWatchTimer() {
@@ -123,7 +154,7 @@
     if (watchAdvancing) return;
     const game = readGame();
     const rev = game ? game.rev : null;
-    // Keep the 5s look window — do not restart it on every coach refresh.
+    // Keep the look window — do not restart it on every coach refresh.
     if (!force && watchTimer != null && watchTimerRev === rev) return;
     clearWatchTimer();
     watchTimerRev = rev;
@@ -131,7 +162,7 @@
       watchTimer = null;
       watchTimerRev = null;
       advanceWatch();
-    }, WATCH_STEP_MS);
+    }, watchStepMs());
   }
   async function advanceWatch() {
     const game = readGame();
@@ -161,7 +192,7 @@
   function hintFor(data) {
     if (data.hold === "watch") {
       if (watchPaused) return "Paused — click Resume when you are ready.";
-      return "Watching their turn — about 5 seconds per step. Pause anytime.";
+      return "Watching their turn — about " + watchSpeedLabel() + " per step. Pause anytime.";
     }
     if (dieNote(data) || rolling()) return "Click the die.";
     const label = quotedPick(data.suggest || "");
@@ -825,6 +856,17 @@
     setWatchPaused(!watchPaused);
     placeChrome();
   });
+  speedSel.addEventListener("change", () => {
+    const next = speedSel.value;
+    if (!WATCH_SPEEDS[next]) return;
+    try { localStorage.setItem(WATCH_SPEED_KEY, next); } catch (e) {}
+    paintPauseBtn();
+    if (watchPending && !watchPaused) scheduleWatchAdvance(true);
+    placeChrome();
+    if (wanted() && note && note.hold === "watch") {
+      hint.textContent = hintFor(note);
+    }
+  });
   nextBtn.addEventListener("click", () => {
     if (!note) return;
     seen.add(note.concept);
@@ -1092,6 +1134,7 @@
     syncGameDetails();
     const row = [];
     if (!pauseBtn.hidden) row.push(pauseBtn);
+    if (!speedSel.hidden) row.push(speedSel);
     if (!watchStatus.hidden) row.push(watchStatus);
     if (!offer.hidden) {
       row.push(offer);
