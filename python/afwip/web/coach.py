@@ -583,10 +583,10 @@ def _watch_notice(view: GameView) -> str:
             if (ev.data or {}).get("kind") != "pass":
                 break
             if ev.side == view.viewer:
-                return f"{status}. Continue to watch {who}."
+                return f"{status}. Watching {who}…"
             return status
     if view.draft_skip_pending:
-        return f"{status}. One Continue finishes this stretch."
+        return f"{status}. Watching the rest of this stretch…"
     events = _latest_step(view)
     for ev in events:
         if ev.type == "token_winchester" or "winchester" in ev.message.lower():
@@ -1330,10 +1330,8 @@ def explain(
         who = watch_side or _watch_opponent(view)
         title = f"Watching {who}"
         if watch_continues_remaining is not None and watch_continues_remaining > 0:
-            unit = "Continue" if watch_continues_remaining == 1 else "Continues"
-            now = (
-                f"{now} · {watch_continues_remaining} {unit} until you can act again"
-            )
+            unit = "step" if watch_continues_remaining == 1 else "steps"
+            now = f"{now} · {watch_continues_remaining} {unit} left"
     return CoachNote(
         revision=view.revision,
         concept=concept,

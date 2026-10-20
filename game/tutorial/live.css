@@ -99,12 +99,12 @@
   font-size: 12px;
 }
 .live-suggest[hidden] { display: none; }
-#live-continue {
+#live-pause {
   margin: 0;
   display: inline-block;
-  background: #ffd166;
-  color: #1a1404;
-  border: 1px solid #ffd166;
+  background: #1c2333;
+  color: #ffe7a8;
+  border: 1px solid rgba(255, 209, 102, 0.65);
   border-radius: 6px;
   padding: 6px 12px;
   font-size: 14px;
@@ -113,17 +113,22 @@
   white-space: nowrap;
   cursor: pointer;
   font-family: "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
-  animation: live-continue-blink 0.8s steps(2, start) infinite;
 }
-#live-continue:hover { background: #ffe7a8; }
-#live-continue:disabled { opacity: 0.45; cursor: default; animation: none; }
-#live-continue[hidden] { display: none; }
-@keyframes live-continue-blink {
-  0% { background: #ffd166; color: #1a1404; box-shadow: 0 0 0 0 rgba(255, 209, 102, 0); }
-  50% { background: #fff6d4; color: #1a1404; box-shadow: 0 0 16px 4px #ffd166; }
+#live-pause:hover { background: #243044; border-color: #ffd166; }
+#live-pause.is-paused {
+  background: #ffd166;
+  color: #1a1404;
+  border-color: #ffd166;
+  animation: live-pause-blink 1s ease-in-out infinite;
+}
+#live-pause.is-paused:hover { background: #ffe7a8; }
+#live-pause[hidden] { display: none; }
+@keyframes live-pause-blink {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 209, 102, 0); }
+  50% { box-shadow: 0 0 14px 3px rgba(255, 209, 102, 0.55); }
 }
 @media (prefers-reduced-motion: reduce) {
-  #live-continue { animation: none; }
+  #live-pause.is-paused { animation: none; }
 }
 /* Opponent just acted — whole piece fills yellow, not just a border. */
 .live-watch-hit {

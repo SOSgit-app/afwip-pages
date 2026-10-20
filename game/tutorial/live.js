@@ -40,12 +40,20 @@
   const art = dock.querySelector("#live-art");
   const title = dock.querySelector("#live-title");
   const suggest = dock.querySelector("#live-suggest");
-  const continueBtn = document.createElement("button");
-  continueBtn.id = "live-continue";
-  continueBtn.type = "button";
-  continueBtn.textContent = "Continue";
-  continueBtn.hidden = true;
-  document.body.append(continueBtn);
+  // Tutorial: PRC turns auto-advance slowly. Pause freezes the next step.
+  const WATCH_STEP_MS = 2200;
+  const PAUSE_KEY = "afwip_watch_paused";
+  let watchPending = false;
+  let watchTimer = null;
+  let watchAdvancing = false;
+  let watchPaused = false;
+  try { watchPaused = localStorage.getItem(PAUSE_KEY) === "1"; } catch (e) {}
+
+  const pauseBtn = document.createElement("button");
+  pauseBtn.id = "live-pause";
+  pauseBtn.type = "button";
+  pauseBtn.hidden = true;
+  document.body.append(pauseBtn);
   const why = dock.querySelector("#live-why");
   const now = dock.querySelector("#live-now");
   const lesson = dock.querySelector("#live-lesson");
@@ -77,18 +85,73 @@
     const end = text.indexOf('". ');
     return end > 6 ? text.slice(6, end) : "";
   }
+  function setWatchPaused(on) {
+    watchPaused = !!on;
+    try { localStorage.setItem(PAUSE_KEY, watchPaused ? "1" : "0"); } catch (e) {}
+    paintPauseBtn();
+    if (watchPaused) clearWatchTimer();
+    else scheduleWatchAdvance();
+  }
+  function paintPauseBtn() {
+    if (!watchPending) {
+      pauseBtn.hidden = true;
+      pauseBtn.textContent = "Pause";
+      pauseBtn.title = "";
+      pauseBtn.classList.remove("is-paused");
+      return;
+    }
+    pauseBtn.hidden = false;
+    pauseBtn.classList.toggle("is-paused", watchPaused);
+    if (watchPaused) {
+      pauseBtn.textContent = "Resume";
+      pauseBtn.title = "Resume watching the other side";
+    } else {
+      pauseBtn.textContent = "Pause";
+      pauseBtn.title = "Pause their turn so you can look at the board";
+    }
+  }
+  function clearWatchTimer() {
+    if (watchTimer != null) {
+      window.clearTimeout(watchTimer);
+      watchTimer = null;
+    }
+  }
+  function scheduleWatchAdvance() {
+    clearWatchTimer();
+    if (!watchPending || watchPaused || watchAdvancing || rolling()) return;
+    watchTimer = window.setTimeout(() => {
+      watchTimer = null;
+      advanceWatch();
+    }, WATCH_STEP_MS);
+  }
+  async function advanceWatch() {
+    const game = readGame();
+    if (!game || typeof window.__afwipApply !== "function") return;
+    if (watchAdvancing || watchPaused || rolling()) return;
+    watchAdvancing = true;
+    clearWatchTimer();
+    clearWatchHits();
+    try {
+      const res = await fetch("/api/games/" + game.id + "/watch", { method: "POST" });
+      if (!res.ok) return;
+      const view = await res.json();
+      window.__afwipApply(view);
+      watchPending = !!view.watch_pending;
+      paintPauseBtn();
+      lastSig = null;
+      if (wanted()) await refresh(true);
+      else placeChrome();
+      if (watchPending) scheduleWatchAdvance();
+    } catch (e) {
+      return;
+    } finally {
+      watchAdvancing = false;
+    }
+  }
   function hintFor(data) {
     if (data.hold === "watch") {
-      if (/Pass \/ end turn|hands the turn/i.test(data.suggest || "")) {
-        return "You ended your turn — click Continue to watch theirs.";
-      }
-      if (/every peek|intel cards/i.test(data.suggest || "")) {
-        return "Click Continue once — they finish all intel peeks in one jump.";
-      }
-      if (/skip ahead|picking enabler|picking and placing squadron|choosing a posture|initiative bid/i.test(data.suggest || "")) {
-        return "Click Continue once to let them finish this stretch.";
-      }
-      return "Yellow blink marks what they just did — then click Continue.";
+      if (watchPaused) return "Paused — click Resume when you are ready.";
+      return "Watching their turn — yellow marks each step. Pause anytime.";
     }
     if (dieNote(data) || rolling()) return "Click the die.";
     const label = quotedPick(data.suggest || "");
@@ -117,7 +180,9 @@
         look.hidden = true;
         just.textContent = "";
         just.hidden = true;
-        continueBtn.hidden = true;
+        watchPending = false;
+        clearWatchTimer();
+        paintPauseBtn();
         nextBtn.hidden = true;
         hint.textContent = "Click New game, then Tutorial.";
         dock.hidden = false;
@@ -219,10 +284,8 @@
     title.textContent = data.title;
     suggest.textContent = data.suggest || "";
     suggest.hidden = !data.suggest;
-    continueBtn.hidden = data.hold !== "watch";
-    continueBtn.title = data.hold === "watch"
-      ? ((data.now || "Advance one paced decision") + " — each click is one step, not a freeze.")
-      : "";
+    watchPending = data.hold === "watch";
+    paintPauseBtn();
     why.textContent = data.why || "";
     why.hidden = !why.textContent;
     // Continue holds: yellow suggest + topbar status carry the fact.
@@ -232,6 +295,8 @@
     if (data.hold === "watch") dock.classList.add("live-watch");
     else dock.classList.remove("live-watch");
     syncWatchStatus(data);
+    if (watchPending) scheduleWatchAdvance();
+    else clearWatchTimer();
     lesson.textContent = "";
     lesson.hidden = true;
     look.textContent = "";
@@ -629,25 +694,30 @@
     scroller.scrollTop = Math.max(0, top - 16);
   }
 
-  let continueSyncing = false;
-  async function syncContinueBtn() {
-    // Keep Continue in sync with watch_pending even when the coach dock is hidden.
+  let pauseSyncing = false;
+  async function syncPauseBtn() {
+    // Keep Pause visible with watch_pending even when the coach dock is hidden.
     const game = readGame();
     if (!game || !fromTutorial) {
-      continueBtn.hidden = true;
+      watchPending = false;
+      clearWatchTimer();
+      paintPauseBtn();
       return;
     }
-    if (continueSyncing) return;
-    continueSyncing = true;
+    if (pauseSyncing) return;
+    pauseSyncing = true;
     try {
       const res = await fetch("/api/games/" + game.id);
       if (!res.ok) return;
       const view = await res.json();
-      continueBtn.hidden = !view.watch_pending;
+      watchPending = !!view.watch_pending;
+      paintPauseBtn();
+      if (watchPending) scheduleWatchAdvance();
+      else clearWatchTimer();
     } catch (e) {
       return;
     } finally {
-      continueSyncing = false;
+      pauseSyncing = false;
       placeChrome();
     }
   }
@@ -659,8 +729,11 @@
       clearWatchHits();
       hideCard();
       syncWatchStatus(null);
+      watchPending = false;
+      clearWatchTimer();
+      paintPauseBtn();
       fit();
-      await syncContinueBtn();
+      await syncPauseBtn();
       return;
     }
     const game = readGame();
@@ -669,8 +742,10 @@
       document.body.classList.remove("afwip-live");
       hideCard();
       syncWatchStatus(null);
+      watchPending = false;
+      clearWatchTimer();
+      paintPauseBtn();
       fit();
-      continueBtn.hidden = true;
       return;
     }
     if (game.id !== gameId) {
@@ -725,10 +800,10 @@
     render(data, first);
   }
 
-  // While Continue is up, ignore choice clicks so a queued/stale click cannot
+  // While their turn is paced, ignore choice clicks so a queued/stale click cannot
   // submit Pass / end turn underneath the hold.
   document.addEventListener("click", (ev) => {
-    if (continueBtn.hidden) return;
+    if (!watchPending) return;
     const btn = ev.target && ev.target.closest && ev.target.closest(".choice-btn");
     if (!btn) return;
     ev.preventDefault();
@@ -736,26 +811,9 @@
     ev.stopImmediatePropagation();
   }, true);
 
-  continueBtn.addEventListener("click", async () => {
-    const game = readGame();
-    if (!game || typeof window.__afwipApply !== "function") return;
-    continueBtn.disabled = true;
-    clearWatchHits();
-    try {
-      // /watch only — never POST /choices. Continue cannot Pass / end turn.
-      const res = await fetch("/api/games/" + game.id + "/watch", { method: "POST" });
-      if (!res.ok) return;
-      const view = await res.json();
-      window.__afwipApply(view);
-      continueBtn.hidden = !view.watch_pending;
-      lastSig = null;
-      if (wanted()) refresh(true);
-      else placeChrome();
-    } catch (e) {
-      return;
-    } finally {
-      continueBtn.disabled = false;
-    }
+  pauseBtn.addEventListener("click", () => {
+    setWatchPaused(!watchPaused);
+    placeChrome();
   });
   nextBtn.addEventListener("click", () => {
     if (!note) return;
@@ -769,6 +827,7 @@
     document.body.classList.remove("afwip-live");
     hideCard();
     syncWatchStatus(null);
+    clearWatchTimer();
     fit();
     markPick();
   });
@@ -879,11 +938,11 @@
     if (
       typeof left === "number"
       && left > 0
+      && text.indexOf("left") < 0
       && text.indexOf("until you can act again") < 0
       && text.indexOf("until your turn") < 0
     ) {
-      text += " · " + left + (left === 1 ? " Continue" : " Continues")
-        + " until you can act again";
+      text += " · " + left + (left === 1 ? " step" : " steps") + " left";
     }
     watchStatus.textContent = text;
     watchStatus.title = text;
@@ -1008,7 +1067,9 @@
       watchStatus.hidden = true;
       detailsBtn.hidden = true;
       setDetailsOpen(false);
-      continueBtn.hidden = true;
+      watchPending = false;
+      clearWatchTimer();
+      paintPauseBtn();
       document.body.classList.remove("afwip-manual", "afwip-unhide", "afwip-watch-status");
       return;
     }
@@ -1020,7 +1081,7 @@
     syncGamePrompt();
     syncGameDetails();
     const row = [];
-    if (!continueBtn.hidden) row.push(continueBtn);
+    if (!pauseBtn.hidden) row.push(pauseBtn);
     if (!watchStatus.hidden) row.push(watchStatus);
     if (!offer.hidden) {
       row.push(offer);
@@ -1048,7 +1109,9 @@
     fromTutorial = false;
     setWanted(false);
     dock.hidden = true;
-    continueBtn.hidden = true;
+    watchPending = false;
+    clearWatchTimer();
+    paintPauseBtn();
     document.body.classList.remove("afwip-live");
     hideCard();
     syncWatchStatus(null);
@@ -1069,7 +1132,7 @@
     placeChrome();
     syncViewerSide();
     if (wanted()) refresh(false);
-    else if (fromTutorial && game && !continueBtn.hidden) syncContinueBtn();
+    else if (fromTutorial && game && watchPending) syncPauseBtn();
     markPick();
   }, 400);
 
