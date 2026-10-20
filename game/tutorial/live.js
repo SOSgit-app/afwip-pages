@@ -225,17 +225,12 @@
       : "";
     why.textContent = data.why || "";
     why.hidden = !why.textContent;
-    // During Continue holds, show the short "what just happened" line.
-    // Otherwise keep the dock to the yellow pick line + bold why.
-    if (data.hold === "watch" && data.now) {
-      now.textContent = data.now;
-      now.hidden = false;
-      dock.classList.add("live-watch");
-    } else {
-      now.textContent = "";
-      now.hidden = true;
-      dock.classList.remove("live-watch");
-    }
+    // Continue holds: yellow suggest + topbar status carry the fact.
+    // Keep #live-now off so the dock does not repeat the same sentence.
+    now.textContent = "";
+    now.hidden = true;
+    if (data.hold === "watch") dock.classList.add("live-watch");
+    else dock.classList.remove("live-watch");
     syncWatchStatus(data);
     lesson.textContent = "";
     lesson.hidden = true;

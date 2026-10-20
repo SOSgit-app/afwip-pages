@@ -399,17 +399,8 @@ def _why(view: GameView, concept: str) -> str:
     if view.roll_pending:
         return _roll_why(view)
     if view.watch_pending:
-        who = _watch_opponent(view)
-        if view.draft_skip_pending:
-            return (
-                f"One Continue lets {who} finish this whole stretch. "
-                "You are not stuck — the game is waiting on you to advance."
-            )
-        return (
-            f"Each Continue advances one {who} decision (a move, play, launch, "
-            "or pass). Fog of war can hide the piece, but the step still happened — "
-            "keep clicking until their turn ends or your choices return."
-        )
+        # Status + Continue button already explain pacing — avoid a second sermon.
+        return ""
     return _WHY.get(concept, "You make this choice because it is the next legal step in the turn.")
 
 
@@ -490,6 +481,23 @@ def _watch_opponent(view: GameView) -> str:
     return "PRC" if view.viewer == "US" else "US" if view.viewer == "PRC" else "They"
 
 
+def _watch_choice_label(label: str) -> str:
+    """Strip verbs already implied by the status line (avoid 'played enabler: Play enabler:')."""
+    text = (label or "").strip()
+    for prefix in (
+        "Play enabler: ",
+        "play enabler: ",
+        "respond: ",
+        "Respond: ",
+        "Activate: ",
+        "activate: ",
+    ):
+        if text.lower().startswith(prefix.lower()):
+            text = text[len(prefix):].strip()
+            break
+    return text
+
+
 def _watch_status(view: GameView) -> str:
     """Short line: what this Continue hold is pausing on (no click cue)."""
     who = _watch_opponent(view)
@@ -505,16 +513,16 @@ def _watch_status(view: GameView) -> str:
     if view.draft_skip_pending:
         batch = getattr(view, "watch_batch", "") or ""
         if batch == "intel":
-            return f"{who} · looking at intel cards (one Continue skips the rest)"
+            return f"{who} · looking at intel cards"
         if batch == "posture":
-            return f"{who} · choosing a posture (one Continue finishes it)"
+            return f"{who} · choosing a posture"
         if batch == "squadrons":
-            return f"{who} · drafting squadrons (one Continue skips the rest)"
+            return f"{who} · drafting squadrons"
         if batch == "enablers":
-            return f"{who} · drafting enablers (one Continue skips the rest)"
+            return f"{who} · drafting enablers"
         if batch == "bid":
             return f"{who} · finishing setup / initiative bid"
-        return f"{who} · several setup picks (one Continue skips ahead)"
+        return f"{who} · several setup picks"
     events = _latest_step(view)
     for ev in events:
         if ev.type == "token_winchester" or "winchester" in ev.message.lower():
@@ -548,10 +556,10 @@ def _watch_status(view: GameView) -> str:
         data = ev.data or {}
         kind = str(data.get("kind") or "")
         _, _, label = (ev.message or "").partition(": ")
-        label = label.strip()
+        label = _watch_choice_label(label)
         side = ev.side or who
         if kind == "play_enabler" or data.get("node_type") == "ENABLER_BRANCH":
-            return f"{side} · played enabler{(': ' + label) if label else ''}"
+            return f"{side} · enabler{(': ' + label) if label else ''}"
         if kind == "activate":
             return f"{side} · activated{(': ' + label) if label else ''}"
         if kind == "spawn" or data.get("node_type") == "SPAWN_BAND":
@@ -561,15 +569,13 @@ def _watch_status(view: GameView) -> str:
         if label:
             return f"{side} · {label}"
         return _plain(ev.message)
-    return f"{who} · board updated — Continue for their next decision"
+    return f"{who} · board updated"
 
 
 def _watch_notice(view: GameView) -> str:
-    """What just happened, held on screen until the player clicks Continue."""
+    """Yellow dock line for a Continue hold — one fact, no repeated Continue sermon."""
     status = _watch_status(view)
     who = _watch_opponent(view)
-    # Pass / end turn: freeze before the opponent's full turn so the handoff
-    # is obvious (mid-turn responses are a different Continue).
     if view.watch_pending and not view.draft_skip_pending:
         for ev in reversed(_latest_step(view)):
             if ev.type != "decision":
@@ -577,59 +583,26 @@ def _watch_notice(view: GameView) -> str:
             if (ev.data or {}).get("kind") != "pass":
                 break
             if ev.side == view.viewer:
-                return (
-                    f"{status}. That hands the turn to the other side. "
-                    "Click Continue to watch their turn — each click shows one of their decisions."
-                )
-            return (
-                f"{status}. "
-                "Click Continue when you have seen it."
-            )
+                return f"{status}. Continue to watch {who}."
+            return status
     if view.draft_skip_pending:
-        return (
-            f"{status}. "
-            "You are not stuck — one Continue jumps through this whole stretch."
-        )
+        return f"{status}. One Continue finishes this stretch."
     events = _latest_step(view)
-    detail = ""
     for ev in events:
         if ev.type == "token_winchester" or "winchester" in ev.message.lower():
             if ev.side == view.viewer:
-                detail = (
-                    "Your aircraft cannot move on its own. At the start of your next "
-                    "turn it flies home and re-arms next cycle."
-                )
-            else:
-                detail = (
-                    f"{ev.side or who}'s aircraft flies home at the start of that "
-                    "side's next turn."
-                )
-            break
-    if not detail:
-        for ev in events:
-            data = ev.data or {}
-            is_move = (
-                ev.type == "token_moved"
-                or (ev.type == "decision" and data.get("kind") == "move")
-            )
-            if not is_move:
-                continue
-            src = data.get("from_band")
-            dst = data.get("to_band") or data.get("band")
-            if isinstance(src, str) and isinstance(dst, str) and src and dst and src != dst:
-                detail = (
-                    f"Follow the yellow trail from {_band_short(src)} to "
-                    f"{_band_short(dst)}."
-                )
-            else:
-                detail = "Look for the yellow mark on the board."
-            break
-    if not detail:
-        detail = (
-            f"Each Continue advances one {who} decision. Keep clicking until "
-            "their turn ends or your choices return."
+                return f"{status}. Flies home and re-arms next cycle."
+            return f"{status}. Flies home on their next turn."
+    for ev in events:
+        data = ev.data or {}
+        is_move = (
+            ev.type == "token_moved"
+            or (ev.type == "decision" and data.get("kind") == "move")
         )
-    return f"{status}. {detail} Click Continue when you have seen it."
+        if not is_move:
+            continue
+        return f"{status}. Yellow trail shows the move."
+    return status
 
 
 def _band_short(band: str) -> str:
