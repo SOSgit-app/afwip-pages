@@ -11,6 +11,7 @@
   let game = null;
   let pulling = false;
   let boardEpoch = 0;
+  let ingestWaiting = false;
   const recentHit = new Map();
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -267,25 +268,85 @@
     const seen = new Set();
     rows.forEach((row) => {
       const text = row.text || "";
+      const data = row.data || {};
       let uid = null;
       const labeled = text.match(/Move\s+.*?\#(\d+)\s*->\s*\S+/i);
       if (labeled) {
         uid = labeled[1];
       } else if (row.type === "t-token_moved") {
-        if (row.data && row.data.uid != null) uid = String(row.data.uid);
+        if (data.uid != null) uid = String(data.uid);
         else {
           const moved = text.match(/#(\d+)\s+moves\b/i);
           if (moved) uid = moved[1];
         }
+      } else if (data.kind === "move" && (data.actor_uid != null || data.uid != null)) {
+        uid = String(data.actor_uid != null ? data.actor_uid : data.uid);
       } else {
         const moved = text.match(/#(\d+)\s+moves\b/i);
         if (moved) uid = moved[1];
       }
       if (!uid || seen.has(uid)) return;
       seen.add(uid);
-      effects.push({ kind: "move", uid: uid });
+      effects.push({
+        kind: "move",
+        uid: uid,
+        side: row.side || "US",
+        fromBand: data.from_band || null,
+        toBand: data.to_band || data.band || null,
+      });
     });
     return effects;
+  }
+
+  function bandPoint(band, side) {
+    // Screen-space center of a map band (same numeral mapping as live.js).
+    const svg = board();
+    if (!svg || !band) return null;
+    function largestRect(root) {
+      if (!root) return null;
+      const rects = [...root.querySelectorAll("rect")];
+      rects.sort((a, b) => {
+        const aa = parseFloat(a.getAttribute("width") || 0) * parseFloat(a.getAttribute("height") || 0);
+        const bb = parseFloat(b.getAttribute("width") || 0) * parseFloat(b.getAttribute("height") || 0);
+        return bb - aa;
+      });
+      return rects[0] || null;
+    }
+    const labels = {
+      US_STANDOFF: "STAND OFF",
+      PRC_STANDOFF: "STAND OFF",
+      US_AIRBASE: "US AIRBASE",
+      PRC_AIRBASE: "PRC AIRBASE",
+      US_CONTINGENCY_LOCATION: "CONTINGENCY LOC.",
+    };
+    const name = labels[band];
+    if (name) {
+      let texts = [...svg.querySelectorAll("text")].filter(
+        (t) => (t.textContent || "").trim() === name
+      );
+      if (band.endsWith("STANDOFF") && texts.length > 1) {
+        texts.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
+        texts = [band.startsWith("US") ? texts[texts.length - 1] : texts[0]];
+      }
+      const rect = largestRect(texts[0] && texts[0].parentElement);
+      return rect ? center(rect) : labeled(name);
+    }
+    const m = /^BAND_([A-E])$/.exec(band);
+    if (m) {
+      const usNum = m[1].charCodeAt(0) - 64;
+      const forPrc = side === "PRC";
+      const want = String(forPrc ? 6 - usNum : usNum);
+      const candidates = [...svg.querySelectorAll("text")].filter(
+        (t) => (t.textContent || "").trim() === want
+      );
+      const label = candidates.find((t) => {
+        const rotated = /rotate\s*\(\s*180/i.test(t.getAttribute("transform") || "");
+        return forPrc ? rotated : !rotated;
+      }) || candidates[0];
+      const rect = largestRect(label && label.parentElement);
+      return rect ? center(rect) : null;
+    }
+    return null;
   }
 
   function pieceGroup(uid) {
@@ -488,18 +549,31 @@
   }
 
   function settlePositions() {
+    // Keep pre-move anchors while we wait for React to paint a PRC/US slide.
+    if (ingestWaiting) return;
     const live = captureLive();
     if (!live.size) return;
     tokens.clear();
     live.forEach((at, uid) => tokens.set(uid, at));
   }
 
+  function moveFromTo(fx) {
+    const to = liveToken(fx.uid);
+    const from = tokenAt(fx.uid)
+      || (fx.fromBand ? bandPoint(fx.fromBand, fx.side) : null);
+    // Prefer the live chip; fall back to destination band if React has not
+    // painted yet (caller should wait — see ingest).
+    const dest = to || (fx.toBand ? bandPoint(fx.toBand, fx.side) : null);
+    return { from: from, to: dest, live: to };
+  }
+
   function bindEffects(fresh) {
     const effects = interpret(fresh).map((fx) => {
       if (fx.kind === "move") {
-        const from = tokenAt(fx.uid);
-        const to = liveToken(fx.uid);
-        return Object.assign({}, fx, { from: from, to: to });
+        const pts = moveFromTo(fx);
+        // Only slide once the chip is on the destination (React painted).
+        if (!pts.live) return Object.assign({}, fx, { from: null, to: null });
+        return Object.assign({}, fx, { from: pts.from, to: pts.live });
       }
       if (fx.kind === "spawn") {
         const to = liveToken(fx.uid);
@@ -541,22 +615,39 @@
     }
     const fresh = rows.filter((row) => row.step > watermark);
     if (!fresh.length) return;
-    watermark = maxStep;
+    const pendingMoves = interpret(fresh);
+    // Cancel any in-flight wait (poll vs apply race).
     const epoch = ++boardEpoch;
-    // __afwipApply only setStates — React paints later. Watch the board DOM and
-    // park movers in that mutation turn (before the browser paints) so the chip
-    // never flashes on the destination, then slide.
+    // Non-move steps: settle immediately. Move steps: do NOT bump watermark
+    // until React has painted — the 280ms poll used to burn the step before
+    // __afwipApply, so PRC chips teleported with no slide.
+    if (!pendingMoves.length) {
+      ingestWaiting = false;
+      watermark = maxStep;
+      settlePositions();
+      return;
+    }
+    ingestWaiting = true;
     let finished = false;
+    function commit(effects) {
+      if (finished || epoch !== boardEpoch) return;
+      finished = true;
+      ingestWaiting = false;
+      watermark = maxStep;
+      if (obs) obs.disconnect();
+      if (effects && effects.length) {
+        parkSlides(effects);
+        runWhenClear(effects);
+        window.setTimeout(settlePositions, reduce ? 200 : 900);
+      } else {
+        settlePositions();
+      }
+    }
     function finish() {
       if (finished || epoch !== boardEpoch) return;
       const effects = bindEffects(fresh);
-      // Wait until live positions actually differ from the settled map.
       if (!effects.length) return;
-      finished = true;
-      if (obs) obs.disconnect();
-      parkSlides(effects);
-      runWhenClear(effects);
-      window.setTimeout(settlePositions, reduce ? 200 : 900);
+      commit(effects);
     }
     let obs = null;
     const svg = board();
@@ -564,21 +655,18 @@
       obs = new MutationObserver(() => {
         try { finish(); } catch (e) { /* ignore */ }
       });
-      obs.observe(svg, { childList: true, subtree: true });
+      obs.observe(svg, { childList: true, subtree: true, attributes: true });
     }
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        if (epoch !== boardEpoch) return;
-        if (!finished) {
-          // No move/spawn distance yet (or no MO) — settle other steps / retry once.
-          finish();
-          if (!finished) {
-            if (obs) obs.disconnect();
-            settlePositions();
-          }
-        }
+        try { finish(); } catch (e) { /* ignore */ }
       });
     });
+    // Poll may see the new log before React paints; keep waiting briefly.
+    window.setTimeout(() => {
+      try { finish(); } catch (e) { /* ignore */ }
+      if (!finished && epoch === boardEpoch) commit([]);
+    }, reduce ? 400 : 1800);
   }
 
   function hookApply() {
