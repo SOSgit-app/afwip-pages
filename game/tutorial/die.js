@@ -39,7 +39,9 @@
 
   function autoPlaying() {
     // Watch Agents topbar: when Auto is on the button label switches to Pause.
+    // Ignore the tutorial's #live-pause — that only freezes PRC auto-steps.
     return [...document.querySelectorAll(".topbar button")].some((btn) => {
+      if (btn.id === "live-pause") return false;
       const label = (btn.textContent || "").replace(/\s+/g, " ").trim();
       return /^Pause\b/i.test(label);
     });
