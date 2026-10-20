@@ -29,4 +29,6 @@ $json = $files | ConvertTo-Json
   $json,
   [System.Text.UTF8Encoding]::new($false)
 )
-Write-Host "Refreshed from $desktop — $($files.Count) python files in manifest."
+# Never copy desktop web/dist/index.html over this repo's root index.html —
+# Pages boots via ./js/boot.js + ./game/... relative paths.
+Write-Host "Refreshed from $desktop - $($files.Count) python files in manifest."
