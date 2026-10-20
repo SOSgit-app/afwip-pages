@@ -1358,7 +1358,9 @@ def explain(
         title = f"Watching {who}"
         if watch_continues_remaining is not None and watch_continues_remaining > 0:
             unit = "Continue" if watch_continues_remaining == 1 else "Continues"
-            now = f"{now} · {watch_continues_remaining} {unit} until your turn"
+            now = (
+                f"{now} · {watch_continues_remaining} {unit} until you can act again"
+            )
     return CoachNote(
         revision=view.revision,
         concept=concept,

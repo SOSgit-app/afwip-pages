@@ -785,7 +785,11 @@ class GameSession:
         return node.side == self.human_side
 
     def _fork_for_pace_sim(self) -> "GameSession":
-        """Replay tape into a disposable session with the same pacing flags."""
+        """Replay tape into a disposable session aligned with this one's RNG.
+
+        Tape replay does not call agents, so `agent_rng` would otherwise restart
+        at seed+1 and future opponent picks (and Continue counts) would diverge.
+        """
         if not self.recording:
             raise SessionError("pace sim needs a recording tape")
         sim = GameSession.from_save(
@@ -798,15 +802,27 @@ class GameSession:
         sim._skip_draft_batch = self._skip_draft_batch
         sim._watch_batch_nodes = self._watch_batch_nodes
         sim._last_choice_kind = self._last_choice_kind
+        # Match the live AI's next samples (TutorialAgent / PolicyAgent).
+        sim.agent_rng.setstate(self.agent_rng.getstate())
+        # Engine dice stream must match too if a later hold rolls.
+        eng_rng = getattr(self.env.engine, "rng", None)
+        sim_eng_rng = getattr(sim.env.engine, "rng", None)
+        if eng_rng is not None and sim_eng_rng is not None:
+            sim_eng_rng.setstate(eng_rng.getstate())
         return sim
 
     def count_watch_continues_remaining(self, max_clicks: int = 200) -> Optional[int]:
-        """How many Continue clicks until the human's choices return.
+        """How many Continue clicks until the human can act again.
 
-        Dry-runs a fork: each Continue is counted; opponent dice rolls are not
-        (those use the die UI). Returns None when paced watch does not apply.
+        Tutorial-only (paced + tutorial agent): dry-runs a fork with synced RNG.
+        Opponent dice rolls are not counted (those use the die UI).
         """
-        if self.mode != GameMode.HUMAN_V_AGENT or not self.paced:
+        # Lobby Tutorial = agent "tutorial" + paced coach. Other modes stay quiet.
+        if (
+            self.mode != GameMode.HUMAN_V_AGENT
+            or not self.paced
+            or self.agent_name != "tutorial"
+        ):
             return None
         if not self.watch_pending:
             return 0 if self._human_choices_ready() else None
@@ -821,6 +837,7 @@ class GameSession:
             self._handoff_armed,
             self._human_saw_player_turn,
             self._skip_draft_batch,
+            self.agent_rng.getstate(),
         )
         if self._watch_continues_cache and self._watch_continues_cache[0] == key:
             return self._watch_continues_cache[1]
