@@ -262,15 +262,7 @@
         name: ((played || respond || ["", ""])[1] || "").trim(),
       };
     }
-    if (data.kind === "activate" || /^[A-Z]+ TURN_ACTION: Activate /i.test(msg) || /Activate /i.test(msg)) {
-      return {
-        step: ev.step,
-        dest: "board",
-        side: ev.side || "US",
-        cardId: data.card_id || null,
-        name: (msg.match(/Activate\s+(.+)$/i) || ["", ""])[1].trim(),
-      };
-    }
+    // No fly-to-airbase on activate — board motion is token slides only.
     return null;
   }
 

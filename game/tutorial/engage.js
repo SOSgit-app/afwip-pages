@@ -1,5 +1,4 @@
-/* Shows when two pieces engage: a missile for a shot, a sensor line for a
-   spot, lightning for cyber, and a shield when missile defense answers. */
+/* Board motion: slide tokens when they Move. Other engage FX are disabled. */
 (function () {
   const SVG = "http://www.w3.org/2000/svg";
   const layer = document.createElementNS(SVG, "svg");
@@ -260,47 +259,12 @@
   }
 
   function interpret(rows) {
-    const destroyed = new Set();
-    rows.forEach((row) => {
-      if (row.type === "t-token_destroyed") {
-        const match = row.text.match(/#(\d+)/);
-        if (match) destroyed.add(match[1]);
-      }
-    });
+    // Board FX: token movement slides only. No acquire sensors, missiles,
+    // bolts, shields, bursts, or spawn slides.
     const effects = [];
-    const covered = new Set();
     rows.forEach((row) => {
-      const text = row.text;
-      const side = row.side || "US";
-      let match;
-      if ((match = text.match(/Air:\s*#(\d+)\s*->\s*.*?#(\d+)/))) {
-        effects.push({ kind: "missile", from: match[1], to: match[2], hit: destroyed.has(match[2]) });
-        covered.add(match[2]);
-      } else if ((match = text.match(/Surface:\s*#(\d+)\s*->\s*.*?#(\d+)/))) {
-        effects.push({ kind: "missile", from: match[1], to: match[2], hit: destroyed.has(match[2]) });
-        covered.add(match[2]);
-      } else if ((match = text.match(/Base strike:\s*#(\d+)\s*->\s*(US_AIRBASE|PRC_AIRBASE)/))) {
-        effects.push({ kind: "base", from: match[1], base: match[2] });
-      } else if ((match = text.match(/Acquire \?#(\d+)\(av\d+\) with #(\d+)/))) {
-        effects.push({ kind: "sensor", from: match[2], to: match[1] });
-      } else if ((match = text.match(/:\s*destroy\b.*?\#(\d+)/i))) {
-        effects.push({ kind: "bolt", side: side, to: match[1] });
-        covered.add(match[1]);
-      } else if ((match = text.match(/:\s*acquire\b.*?\#(\d+)/i))) {
-        effects.push({ kind: "sensor", side: side, to: match[1] });
-      } else if ((match = text.match(/MD with .*?#(\d+)/))) {
-        effects.push({ kind: "shield", to: match[1] });
-      } else if ((match = text.match(/Move\s+.*?\#(\d+)\s*->\s*\S+/i))) {
-        effects.push({ kind: "move", uid: match[1] });
-      } else if (row.type === "t-token_enters" || /#\d+\s+enters play/i.test(text)) {
-        match = text.match(/#(\d+)/);
-        if (match) effects.push({ kind: "spawn", uid: match[1], side: side });
-      } else if (row.type === "t-cyber_change" || /cyber rate/i.test(text) || /cyber raise/i.test(text) || /Play enabler:.*cyber/i.test(text)) {
-        // Cyber rate changes stay in the log; no board lightning animation.
-      }
-    });
-    destroyed.forEach((uid) => {
-      if (!covered.has(uid) && !recentHit.has(uid)) effects.push({ kind: "burst", to: uid });
+      const match = (row.text || "").match(/Move\s+.*?\#(\d+)\s*->\s*\S+/i);
+      if (match) effects.push({ kind: "move", uid: match[1] });
     });
     return effects;
   }
