@@ -119,8 +119,6 @@
 #live-watch-speed:hover { background: #243044; border-color: #ffd166; }
 #live-watch-speed {
   padding-right: 28px;
-  appearance: none;
-  -webkit-appearance: none;
   background-image:
     linear-gradient(45deg, transparent 50%, #ffe7a8 50%),
     linear-gradient(135deg, #ffe7a8 50%, transparent 50%);
@@ -134,9 +132,39 @@
   outline: 2px solid rgba(255, 209, 102, 0.55);
   outline-offset: 1px;
 }
-#live-watch-speed option {
+#live-watch-speed-menu {
+  position: fixed;
+  z-index: 10050;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 4px;
   background: #1c2333;
+  border: 1px solid rgba(255, 209, 102, 0.65);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+#live-watch-speed-menu[hidden] { display: none; }
+.live-watch-speed-opt {
+  margin: 0;
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
   color: #ffe7a8;
+  border: 0;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+}
+.live-watch-speed-opt:hover { background: #243044; }
+.live-watch-speed-opt.is-active {
+  background: #ffd166;
+  color: #1a1404;
 }
 #live-pause.is-paused {
   background: #ffd166;

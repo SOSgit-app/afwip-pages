@@ -68,18 +68,30 @@
   pauseBtn.type = "button";
   pauseBtn.hidden = true;
   document.body.append(pauseBtn);
-  const speedSel = document.createElement("select");
+  const SPEED_OPTS = [["slow", "Slow"], ["medium", "Medium"], ["fast", "Fast"]];
+  const speedSel = document.createElement("button");
   speedSel.id = "live-watch-speed";
+  speedSel.type = "button";
   speedSel.setAttribute("aria-label", "Watch speed");
+  speedSel.setAttribute("aria-haspopup", "listbox");
+  speedSel.setAttribute("aria-expanded", "false");
   speedSel.hidden = true;
-  [["slow", "Slow"], ["medium", "Medium"], ["fast", "Fast"]].forEach(([value, label]) => {
-    const opt = document.createElement("option");
-    opt.value = value;
-    opt.textContent = label;
-    speedSel.append(opt);
-  });
-  speedSel.value = readWatchSpeed();
   document.body.append(speedSel);
+  const speedMenu = document.createElement("div");
+  speedMenu.id = "live-watch-speed-menu";
+  speedMenu.setAttribute("role", "listbox");
+  speedMenu.hidden = true;
+  SPEED_OPTS.forEach(([value, label]) => {
+    const opt = document.createElement("button");
+    opt.type = "button";
+    opt.className = "live-watch-speed-opt";
+    opt.dataset.speed = value;
+    opt.setAttribute("role", "option");
+    opt.textContent = label;
+    speedMenu.append(opt);
+  });
+  document.body.append(speedMenu);
+  let speedMenuOpen = false;
   const why = dock.querySelector("#live-why");
   const now = dock.querySelector("#live-now");
   const lesson = dock.querySelector("#live-lesson");
@@ -117,13 +129,62 @@
     if (watchPaused) clearWatchTimer();
     else scheduleWatchAdvance(true);
   }
+  function speedSelBusy() {
+    return speedMenuOpen;
+  }
+  function speedLabelFor(key) {
+    const hit = SPEED_OPTS.find((row) => row[0] === key);
+    return hit ? hit[1] : "Medium";
+  }
+  function closeSpeedMenu() {
+    if (!speedMenuOpen) return;
+    speedMenuOpen = false;
+    speedMenu.hidden = true;
+    speedSel.setAttribute("aria-expanded", "false");
+  }
+  function openSpeedMenu() {
+    if (speedSel.hidden) return;
+    speedMenuOpen = true;
+    speedSel.setAttribute("aria-expanded", "true");
+    const cur = readWatchSpeed();
+    [...speedMenu.querySelectorAll(".live-watch-speed-opt")].forEach((opt) => {
+      const on = opt.dataset.speed === cur;
+      opt.classList.toggle("is-active", on);
+      opt.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    speedMenu.hidden = false;
+    placeSpeedMenu();
+  }
+  function placeSpeedMenu() {
+    if (!speedMenuOpen || speedSel.hidden) return;
+    const r = speedSel.getBoundingClientRect();
+    speedMenu.style.left = Math.round(r.left) + "px";
+    speedMenu.style.top = Math.round(r.bottom + 4) + "px";
+    speedMenu.style.minWidth = Math.round(r.width) + "px";
+  }
+  function setWatchSpeed(next) {
+    if (!WATCH_SPEEDS[next]) return;
+    try { localStorage.setItem(WATCH_SPEED_KEY, next); } catch (e) {}
+    closeSpeedMenu();
+    paintSpeedSel();
+    if (watchPending && !watchPaused) scheduleWatchAdvance(true);
+    placeChrome();
+    if (wanted() && note && note.hold === "watch") {
+      hint.textContent = hintFor(note);
+    }
+  }
   function paintSpeedSel() {
     // Always available in the tutorial so pace can be set before their turn.
     const show = !!(fromTutorial && readGame());
     speedSel.hidden = !show;
-    if (!show) return;
-    speedSel.value = readWatchSpeed();
+    if (!show) {
+      closeSpeedMenu();
+      return;
+    }
+    const want = readWatchSpeed();
+    speedSel.textContent = speedLabelFor(want);
     speedSel.title = "Look time between their steps (" + watchSpeedLabel() + ")";
+    if (speedMenuOpen) placeSpeedMenu();
   }
   function paintPauseBtn() {
     paintSpeedSel();
@@ -861,16 +922,27 @@
     setWatchPaused(!watchPaused);
     placeChrome();
   });
-  speedSel.addEventListener("change", () => {
-    const next = speedSel.value;
-    if (!WATCH_SPEEDS[next]) return;
-    try { localStorage.setItem(WATCH_SPEED_KEY, next); } catch (e) {}
-    paintSpeedSel();
-    if (watchPending && !watchPaused) scheduleWatchAdvance(true);
-    placeChrome();
-    if (wanted() && note && note.hold === "watch") {
-      hint.textContent = hintFor(note);
-    }
+  speedSel.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (speedMenuOpen) closeSpeedMenu();
+    else openSpeedMenu();
+  });
+  speedMenu.addEventListener("click", (ev) => {
+    const opt = ev.target && ev.target.closest && ev.target.closest(".live-watch-speed-opt");
+    if (!opt) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    setWatchSpeed(opt.dataset.speed);
+  });
+  document.addEventListener("click", (ev) => {
+    if (!speedMenuOpen) return;
+    const t = ev.target;
+    if (t === speedSel || speedSel.contains(t) || t === speedMenu || speedMenu.contains(t)) return;
+    closeSpeedMenu();
+  });
+  window.addEventListener("resize", () => {
+    if (speedMenuOpen) placeSpeedMenu();
   });
   nextBtn.addEventListener("click", () => {
     if (!note) return;
@@ -1115,6 +1187,8 @@
     el.style.position = "";
   }
   function placeChrome() {
+    // Moving nodes closes an open speed menu — wait until they pick.
+    if (speedSelBusy()) return;
     const btn = newGameButton();
     if (!btn) {
       manual.hidden = true;
@@ -1171,6 +1245,7 @@
     dock.hidden = true;
     watchPending = false;
     clearWatchTimer();
+    closeSpeedMenu();
     paintPauseBtn();
     speedSel.hidden = true;
     document.body.classList.remove("afwip-live");
