@@ -3,79 +3,31 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AFWI — Air Force Wargame: Indo-Pacific (Pages)</title>
-    <style>
-      html, body { height: 100%; margin: 0; background: #0d1117; color: #dce3f0;
-        font-family: "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif; }
-      #afwip-boot {
-        position: fixed; inset: 0; z-index: 9999;
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        gap: 12px; background: #0d1117; text-align: center; padding: 24px;
-      }
-      #afwip-boot[hidden] { display: none !important; }
-      #afwip-boot h1 { margin: 0; font-size: 22px; letter-spacing: 0.04em; color: #ffd166; }
-      #afwip-boot-status { margin: 0; color: #8b96ad; max-width: 36rem; line-height: 1.45; }
-      #afwip-boot-error { color: #ff5f56; max-width: 36rem; white-space: pre-wrap; }
-      #root { height: 100%; }
-    </style>
-    <script src="./js/boot.js?v=continue-no-pass"></script>
+    <title>AFWI — Air Force Wargame: Indo-Pacific</title>
+    <script type="module" crossorigin src="/assets/index-JGPAeEUq.js?v=hotseat-side"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-B-3L_Sb6.css">
+    <link rel="stylesheet" href="/tutorial/lobby.css?v=builds">
+    <link rel="stylesheet" href="/tutorial/builds.css?v=2">
+    <link rel="stylesheet" href="/tutorial/live.css?v=turn-pulse">
+    <link rel="stylesheet" href="/tutorial/die.css?v=die-btns">
+    <link rel="stylesheet" href="/tutorial/home.css?v=prc">
+    <link rel="stylesheet" href="/tutorial/engage.css?v=ix">
+    <link rel="stylesheet" href="/tutorial/base.css?v=x">
+    <link rel="stylesheet" href="/tutorial/enabler.css?v=3">
+    <link rel="stylesheet" href="/tutorial/flycard.css?v=1">
   </head>
   <body>
-    <div id="afwip-boot">
-      <h1>AFWI</h1>
-      <p id="afwip-boot-status">Preparing browser engine…</p>
-      <p id="afwip-boot-error" hidden></p>
-    </div>
     <div id="root"></div>
-
-    <!-- Game UI (same assets as the desktop build; API calls go through Pyodide). -->
-    <link rel="stylesheet" crossorigin href="./game/assets/index-B-3L_Sb6.css" />
-    <link rel="stylesheet" href="./game/tutorial/lobby.css?v=pages" />
-    <link rel="stylesheet" href="./game/tutorial/builds.css?v=2" />
-    <link rel="stylesheet" href="./game/tutorial/live.css?v=turn-pulse" />
-    <link rel="stylesheet" href="./game/tutorial/die.css?v=die-btns" />
-    <link rel="stylesheet" href="./game/tutorial/home.css?v=prc" />
-    <link rel="stylesheet" href="./game/tutorial/engage.css?v=ix" />
-    <link rel="stylesheet" href="./game/tutorial/base.css?v=x" />
-    <link rel="stylesheet" href="./game/tutorial/enabler.css?v=3" />
-    <link rel="stylesheet" href="./game/tutorial/flycard.css?v=1" />
-
-    <script>
-      (async function () {
-        const errEl = document.getElementById("afwip-boot-error");
-        try {
-          await window.AFWIP_BOOT();
-        } catch (err) {
-          console.error(err);
-          errEl.hidden = false;
-          errEl.textContent = String(err && err.message ? err.message : err);
-          document.getElementById("afwip-boot-status").textContent = "Engine failed to start.";
-          return;
-        }
-        // Load the React app only after /api is wired to Pyodide.
-        const s = document.createElement("script");
-        s.type = "module";
-        s.crossOrigin = "";
-        s.src = "./game/assets/index-JGPAeEUq.js?v=pages";
-        document.body.appendChild(s);
-
-        function add(src) {
-          const t = document.createElement("script");
-          t.src = src;
-          document.body.appendChild(t);
-        }
-        add("./game/tutorial/live.js?v=continue-no-pass");
-        add("./game/tutorial/turn.js?v=1");
-        add("./game/tutorial/save.js?v=1");
-        add("./game/tutorial/die.js?v=auto-die");
-        add("./game/tutorial/credits.js?v=2");
-        add("./game/tutorial/builds.js?v=2");
-        add("./game/tutorial/engage.js?v=move-only");
-        add("./game/tutorial/base.js?v=x");
-        add("./game/tutorial/enabler.js?v=flycard");
-        add("./game/tutorial/flycard.js?v=no-activate");
-        add("./game/tutorial/quota.js?v=1");
-      })();
-    </script>
+    <script src="/tutorial/live.js?v=prc-enabler-preview"></script>
+    <script src="/tutorial/turn.js?v=1"></script>
+    <script src="/tutorial/save.js?v=1"></script>
+    <script src="/tutorial/die.js?v=auto-die"></script>
+    <script src="/tutorial/credits.js?v=2"></script>
+    <script src="/tutorial/builds.js?v=2"></script>
+    <script src="/tutorial/engage.js?v=move-only"></script>
+    <script src="/tutorial/base.js?v=x"></script>
+    <script src="/tutorial/enabler.js?v=flycard"></script>
+    <script src="/tutorial/flycard.js?v=no-activate"></script>
+    <script src="/tutorial/quota.js?v=1"></script>
   </body>
 </html>

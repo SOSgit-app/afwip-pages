@@ -169,6 +169,8 @@
   cardPreview.append(cardPreviewImg);
   document.body.append(cardPreview);
 
+  let pinnedWatchCard = null; // stay over the board while Continue holds an enabler play
+
   function showCard(src, alt) {
     cardPreviewImg.src = src;
     cardPreviewImg.alt = alt;
@@ -176,6 +178,10 @@
   }
   function hideCard() {
     cardPreview.hidden = true;
+  }
+  function restorePinnedCard() {
+    if (pinnedWatchCard) showCard(pinnedWatchCard.src, pinnedWatchCard.alt);
+    else hideCard();
   }
   function figure(src, alt, zoom) {
     const img = document.createElement("img");
@@ -185,7 +191,7 @@
     if (zoom) {
       img.className = "live-card";
       img.addEventListener("mouseenter", () => showCard(src, alt));
-      img.addEventListener("mouseleave", hideCard);
+      img.addEventListener("mouseleave", restorePinnedCard);
     }
     return img;
   }
@@ -228,6 +234,7 @@
     hint.textContent = "";
     hint.hidden = true;
     hideCard();
+    pinnedWatchCard = null;
     art.replaceChildren();
     (data.cards || []).slice(0, 2).forEach((id) => {
       art.append(figure("/art/cards/" + id + ".jpg", "Card " + id, true));
@@ -235,6 +242,19 @@
     (data.tokens || []).slice(0, 2).forEach((slug) => {
       art.append(figure("/art/tokens/" + slug + ".jpg", slug));
     });
+    // PRC (or any AI) enabler/response: pin the card over the board until Continue.
+    if (
+      data.hold === "watch"
+      && (data.concept === "enabler_play" || data.concept === "response")
+      && data.cards
+      && data.cards[0]
+    ) {
+      pinnedWatchCard = {
+        src: "/art/cards/" + data.cards[0] + ".jpg",
+        alt: data.title || "Enabler",
+      };
+      showCard(pinnedWatchCard.src, pinnedWatchCard.alt);
+    }
     nextBtn.hidden = true;
     if (first && data.concept) {
       seen.add(data.concept);
