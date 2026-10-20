@@ -261,10 +261,29 @@
   function interpret(rows) {
     // Board FX: token movement slides only. No acquire sensors, missiles,
     // bolts, shields, bursts, or spawn slides.
+    // US decisions use "Move … #uid -> band". PRC / fogged moves usually
+    // arrive as token_moved ("… #uid moves" / data.uid) — still slide those.
     const effects = [];
+    const seen = new Set();
     rows.forEach((row) => {
-      const match = (row.text || "").match(/Move\s+.*?\#(\d+)\s*->\s*\S+/i);
-      if (match) effects.push({ kind: "move", uid: match[1] });
+      const text = row.text || "";
+      let uid = null;
+      const labeled = text.match(/Move\s+.*?\#(\d+)\s*->\s*\S+/i);
+      if (labeled) {
+        uid = labeled[1];
+      } else if (row.type === "t-token_moved") {
+        if (row.data && row.data.uid != null) uid = String(row.data.uid);
+        else {
+          const moved = text.match(/#(\d+)\s+moves\b/i);
+          if (moved) uid = moved[1];
+        }
+      } else {
+        const moved = text.match(/#(\d+)\s+moves\b/i);
+        if (moved) uid = moved[1];
+      }
+      if (!uid || seen.has(uid)) return;
+      seen.add(uid);
+      effects.push({ kind: "move", uid: uid });
     });
     return effects;
   }
@@ -459,6 +478,7 @@
       type: "t-" + (ev.type || ""),
       side: ev.side || "US",
       step: ev.step || 0,
+      data: ev.data || {},
     }));
   }
 
