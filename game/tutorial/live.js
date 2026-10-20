@@ -117,19 +117,24 @@
     if (watchPaused) clearWatchTimer();
     else scheduleWatchAdvance(true);
   }
+  function paintSpeedSel() {
+    // Always available in the tutorial so pace can be set before their turn.
+    const show = !!(fromTutorial && readGame());
+    speedSel.hidden = !show;
+    if (!show) return;
+    speedSel.value = readWatchSpeed();
+    speedSel.title = "Look time between their steps (" + watchSpeedLabel() + ")";
+  }
   function paintPauseBtn() {
+    paintSpeedSel();
     if (!watchPending) {
       pauseBtn.hidden = true;
-      speedSel.hidden = true;
       pauseBtn.textContent = "Pause";
       pauseBtn.title = "";
       pauseBtn.classList.remove("is-paused");
       return;
     }
     pauseBtn.hidden = false;
-    speedSel.hidden = false;
-    speedSel.value = readWatchSpeed();
-    speedSel.title = "Look time between their steps (" + watchSpeedLabel() + ")";
     pauseBtn.classList.toggle("is-paused", watchPaused);
     if (watchPaused) {
       pauseBtn.textContent = "Resume";
@@ -860,7 +865,7 @@
     const next = speedSel.value;
     if (!WATCH_SPEEDS[next]) return;
     try { localStorage.setItem(WATCH_SPEED_KEY, next); } catch (e) {}
-    paintPauseBtn();
+    paintSpeedSel();
     if (watchPending && !watchPaused) scheduleWatchAdvance(true);
     placeChrome();
     if (wanted() && note && note.hold === "watch") {
@@ -1122,6 +1127,7 @@
       watchPending = false;
       clearWatchTimer();
       paintPauseBtn();
+      speedSel.hidden = true;
       document.body.classList.remove("afwip-manual", "afwip-unhide", "afwip-watch-status");
       return;
     }
@@ -1132,6 +1138,7 @@
     detailsBtn.hidden = false;
     syncGamePrompt();
     syncGameDetails();
+    paintSpeedSel();
     const row = [];
     if (!pauseBtn.hidden) row.push(pauseBtn);
     if (!speedSel.hidden) row.push(speedSel);
@@ -1165,6 +1172,7 @@
     watchPending = false;
     clearWatchTimer();
     paintPauseBtn();
+    speedSel.hidden = true;
     document.body.classList.remove("afwip-live");
     hideCard();
     syncWatchStatus(null);
