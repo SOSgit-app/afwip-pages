@@ -202,6 +202,8 @@ class GameView(BaseModel):
     # Tutorial: Continue will run the opponent's whole draft (posture /
     # squadrons / enablers) in one jump instead of one Continue per card.
     draft_skip_pending: bool = False
+    # Which stretch Continue will skip: "" | "draft" | "intel"
+    watch_batch: str = ""
     recording: bool = False         # a trajectory is being captured (savable on demand)
     trajectory_saved: bool = False  # the tape has been written to disk this session
     # Recent agent moves + reasoning — populated only in Watch Agents mode.

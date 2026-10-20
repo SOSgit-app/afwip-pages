@@ -18,7 +18,7 @@
       #afwip-boot-error { color: #ff5f56; max-width: 36rem; white-space: pre-wrap; }
       #root { height: 100%; }
     </style>
-    <script src="./js/boot.js?v=aec2"></script>
+    <script src="./js/boot.js?v=turn-pass-pr1"></script>
   </head>
   <body>
     <div id="afwip-boot">
@@ -32,7 +32,7 @@
     <link rel="stylesheet" crossorigin href="./game/assets/index-B-3L_Sb6.css" />
     <link rel="stylesheet" href="./game/tutorial/lobby.css?v=pages" />
     <link rel="stylesheet" href="./game/tutorial/builds.css?v=2" />
-    <link rel="stylesheet" href="./game/tutorial/live.css?v=hotseat-side" />
+    <link rel="stylesheet" href="./game/tutorial/live.css?v=turn-pulse" />
     <link rel="stylesheet" href="./game/tutorial/die.css?v=die-btns" />
     <link rel="stylesheet" href="./game/tutorial/home.css?v=prc" />
     <link rel="stylesheet" href="./game/tutorial/engage.css?v=ix" />
@@ -64,11 +64,13 @@
           t.src = src;
           document.body.appendChild(t);
         }
-        add("./game/tutorial/live.js?v=contfix");
+        add("./game/tutorial/live.js?v=turn-pulse");
+        add("./game/tutorial/turn.js?v=1");
+        add("./game/tutorial/save.js?v=1");
         add("./game/tutorial/die.js?v=auto-die");
         add("./game/tutorial/credits.js?v=2");
         add("./game/tutorial/builds.js?v=2");
-        add("./game/tutorial/engage.js?v=nocyber");
+        add("./game/tutorial/engage.js?v=pr-spawn");
         add("./game/tutorial/base.js?v=x");
         add("./game/tutorial/enabler.js?v=flycard");
         add("./game/tutorial/flycard.js?v=1");

@@ -125,16 +125,174 @@
 @media (prefers-reduced-motion: reduce) {
   #live-continue { animation: none; }
 }
+/* Opponent just acted — whole piece fills yellow, not just a border. */
+.live-watch-hit {
+  outline: none !important;
+  border-radius: 6px;
+  animation: live-watch-blink 0.85s ease-in-out infinite;
+}
+/* Hand / squadron card cells */
+.card-cell.live-watch-hit,
+.card-thumb.live-watch-hit,
+.trophy.live-watch-hit,
+.token-pop.live-watch-hit {
+  background: #ffd166 !important;
+  box-shadow: 0 0 0 3px #ffe08a, 0 0 18px rgba(255, 209, 102, 0.9) !important;
+  animation: live-watch-card-fill 0.85s ease-in-out infinite;
+}
+.card-cell.live-watch-hit img,
+.card-thumb.live-watch-hit img,
+.trophy.live-watch-hit img,
+.token-pop.live-watch-hit img {
+  /* Keep art readable on the yellow wash. */
+  mix-blend-mode: multiply;
+}
+/* Airbase / home band rects */
+.board-svg rect.live-watch-hit:not(.live-watch-hit-body) {
+  fill: #ffd166 !important;
+  stroke: #fff6d4 !important;
+  stroke-width: 4 !important;
+  outline: none !important;
+  animation: live-watch-token-fill 0.85s ease-in-out infinite;
+}
+/* Move trail: origin → destination while Continue holds (screen overlay). */
+#live-watch-trail-layer {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 34;
+  overflow: visible;
+}
+#live-watch-trail-layer .live-watch-trail-line {
+  stroke: #ffd166;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-dasharray: 12 8;
+  fill: none;
+  opacity: 0.95;
+  animation: live-watch-trail-pulse 0.85s ease-in-out infinite;
+}
+#live-watch-trail-layer .live-watch-trail-origin {
+  fill: #ffd166;
+  stroke: #fff6d4;
+  stroke-width: 2.5;
+  animation: live-watch-trail-pulse 0.85s ease-in-out infinite;
+}
+#live-watch-trail-layer .live-watch-trail-head {
+  fill: #ffd166;
+}
+@keyframes live-watch-trail-pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+/* Board counters: pulse the token body rect (icon/text stay on top). */
+.board-svg g.live-watch-hit {
+  outline: none !important;
+  box-shadow: none !important;
+  filter: drop-shadow(0 0 8px rgba(255, 209, 102, 0.85));
+}
+.board-svg rect.live-watch-hit-body,
+/* Fogged/face-up tiles nest the body rect one <g> under the wrapper we mark. */
+.board-svg g.live-watch-hit > g > rect:first-of-type {
+  outline: none !important;
+  animation: live-watch-token-fill 0.85s ease-in-out infinite;
+}
+@keyframes live-watch-token-fill {
+  0%, 100% {
+    fill: #ffe9a8 !important;
+    stroke: #e6b800 !important;
+    stroke-width: 3 !important;
+  }
+  50% {
+    fill: #ffd166 !important;
+    stroke: #fff6d4 !important;
+    stroke-width: 4 !important;
+  }
+}
+@keyframes live-watch-card-fill {
+  0%, 100% {
+    background: #ffe9a8 !important;
+    box-shadow: 0 0 0 2px #e6b800, 0 0 8px rgba(255, 209, 102, 0.45) !important;
+  }
+  50% {
+    background: #ffd166 !important;
+    box-shadow: 0 0 0 3px #fff6d4, 0 0 20px rgba(255, 209, 102, 0.95) !important;
+  }
+}
+.event-log .ev.live-watch-hit {
+  background: rgba(255, 209, 102, 0.35);
+  border-radius: 4px;
+  animation: live-watch-card-fill 0.85s ease-in-out infinite;
+}
+.side-col.live-watch-hit,
+.right-col.live-watch-hit {
+  outline: 3px solid #ffd166 !important;
+  outline-offset: -2px;
+  background: rgba(255, 209, 102, 0.12);
+  animation: live-watch-blink 0.85s ease-in-out infinite;
+}
+@keyframes live-watch-blink {
+  0%, 100% {
+    box-shadow: inset 0 0 0 0 rgba(255, 209, 102, 0.1);
+    filter: brightness(1);
+  }
+  50% {
+    box-shadow: inset 0 0 24px 2px rgba(255, 209, 102, 0.35);
+    filter: brightness(1.06);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-watch-hit,
+  .card-cell.live-watch-hit,
+  .board-svg rect.live-watch-hit-body,
+  #live-watch-trail-layer .live-watch-trail-line,
+  #live-watch-trail-layer .live-watch-trail-origin,
+  .choice-btn.live-pick,
+  .choice-btn.live-pick::after {
+    animation: none !important;
+  }
+  .board-svg rect.live-watch-hit-body {
+    fill: #ffd166 !important;
+    stroke: #fff6d4 !important;
+  }
+  .card-cell.live-watch-hit,
+  .card-thumb.live-watch-hit {
+    background: #ffd166 !important;
+  }
+  .choice-btn.live-pick {
+    background: rgba(255, 209, 102, 0.35) !important;
+    color: #fff6d4 !important;
+  }
+}
+
 .choice-btn.live-pick,
 .choice-btn.live-pick:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  border-color: #ffd166;
-  background: rgba(255, 209, 102, 0.2);
-  color: #fff6d4;
-  box-shadow: inset 4px 0 0 #ffd166;
+  /* Clear → full yellow (not yellow → brighter yellow). */
+  border-color: #ffd166 !important;
+  color: #dce3f0 !important;
+  background: transparent !important;
+  box-shadow: inset 4px 0 0 #ffd166 !important;
+  animation: live-suggest-blink 1s ease-in-out infinite;
+}
+@keyframes live-suggest-blink {
+  0%, 100% {
+    background: transparent !important;
+    border-color: #ffd166 !important;
+    color: #dce3f0 !important;
+    box-shadow: inset 4px 0 0 #ffd166, 0 0 0 0 transparent !important;
+  }
+  50% {
+    background: #ffd166 !important;
+    border-color: #fff6d4 !important;
+    color: #1a1404 !important;
+    box-shadow: 0 0 0 2px #ffe08a, 0 0 18px rgba(255, 209, 102, 0.95) !important;
+  }
 }
 .choice-btn.live-lock,
 .choice-btn.live-lock:hover {
@@ -164,6 +322,11 @@
   background: #ffd166;
   border-radius: 4px;
   padding: 2px 6px;
+  animation: live-suggest-badge 1s ease-in-out infinite;
+}
+@keyframes live-suggest-badge {
+  0%, 100% { background: #ffd166; color: #1a1404; }
+  50% { background: #1a1404; color: #ffd166; }
 }
 .live-why { margin: 0 0 2px; font-weight: 650; font-size: 12px; color: #fff; }
 .live-now { margin: 0 0 2px; color: #d5dbe8; }
@@ -430,6 +593,53 @@ body:has(.app > .main) #root,
   overflow: hidden;
   position: static;
   align-self: stretch;
+}
+
+/* Whose turn: pulse that side's column (distinct from yellow watch-hit). */
+.side-col.afwip-turn-active,
+.right-col.afwip-turn-active {
+  border-radius: 8px;
+  z-index: 1;
+}
+body.afwip-turn-prc .side-col-prc.afwip-turn-active,
+body.afwip-turn-prc .side-col.afwip-turn-active {
+  outline: 3px solid #ff5f56;
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 1px rgba(255, 95, 86, 0.35), 0 0 18px rgba(255, 95, 86, 0.35);
+  animation: afwip-turn-prc 1.1s ease-in-out infinite;
+}
+body.afwip-turn-us .right-col.afwip-turn-active {
+  outline: 3px solid #5eb8ff;
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 1px rgba(94, 184, 255, 0.35), 0 0 18px rgba(94, 184, 255, 0.35);
+  animation: afwip-turn-us 1.1s ease-in-out infinite;
+}
+@keyframes afwip-turn-prc {
+  0%, 100% {
+    outline-color: rgba(255, 95, 86, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(255, 95, 86, 0.2), 0 0 8px rgba(255, 95, 86, 0.2);
+  }
+  50% {
+    outline-color: #ff5f56;
+    box-shadow: inset 0 0 0 1px rgba(255, 95, 86, 0.45), 0 0 22px rgba(255, 95, 86, 0.5);
+  }
+}
+@keyframes afwip-turn-us {
+  0%, 100% {
+    outline-color: rgba(94, 184, 255, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(94, 184, 255, 0.2), 0 0 8px rgba(94, 184, 255, 0.2);
+  }
+  50% {
+    outline-color: #5eb8ff;
+    box-shadow: inset 0 0 0 1px rgba(94, 184, 255, 0.45), 0 0 22px rgba(94, 184, 255, 0.5);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.afwip-turn-prc .side-col-prc.afwip-turn-active,
+  body.afwip-turn-prc .side-col.afwip-turn-active,
+  body.afwip-turn-us .right-col.afwip-turn-active {
+    animation: none !important;
+  }
 }
 
 /* Side columns: roster on top, selections below — scroll to reach them. */

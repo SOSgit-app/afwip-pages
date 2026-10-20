@@ -27,6 +27,14 @@ class CoachNote(BaseModel):
     hold: str = ""
     cards: list[int] = Field(default_factory=list)
     tokens: list[str] = Field(default_factory=list)
+    # When hold=="watch", which side just acted (for board/side-column highlights).
+    watch_side: str = ""
+    watch_labels: list[str] = Field(default_factory=list)
+    watch_bands: list[str] = Field(default_factory=list)
+    # Board token uids to blink (Winchester, kills, moves) — not the coach art strip.
+    watch_uids: list[int] = Field(default_factory=list)
+    # Move trail: [from_band, to_band] when the held step relocated a token.
+    watch_trail: list[str] = Field(default_factory=list)
 
 
 _LESSONS: dict[str, tuple[str, str, str]] = {
@@ -62,7 +70,7 @@ _LESSONS: dict[str, tuple[str, str, str]] = {
     ),
     "first_player": (
         "Who moves first",
-        "A launch uses the whole turn, so the side that goes first spends that turn getting aircraft up. The side that waits still has its launch. The choice does not move a token by itself.",
+        "A launch is that side's main action for the turn (they may still play one enabler, then pass). The side that goes first spends that turn getting aircraft up. The side that waits still has its launch. The choice does not move a token by itself.",
         "This choice is only about who acts next.",
     ),
     "intel": (
@@ -72,7 +80,7 @@ _LESSONS: dict[str, tuple[str, str, str]] = {
     ),
     "turn": (
         "A turn",
-        "Activate one squadron, or take one move, one acquire, and one shoot, in any order, and you may skip any of them. You cannot launch and shoot on the same turn.",
+        "Activate one squadron, or take one move, one acquire, and one shoot, in any order, and you may skip any of them. You cannot launch and shoot on the same turn. One enabler may be played before or after that branch; after a launch, pass when you are done.",
         "The buttons on the right are the only legal actions. A move that is missing is out of range or already used.",
     ),
     "spawn": (
@@ -97,17 +105,17 @@ _LESSONS: dict[str, tuple[str, str, str]] = {
     ),
     "pass": (
         "Passing",
-        "One pass does not end the cycle. If the opponent also passes, aircraft still in the air land, end-of-cycle points are scored, and the board clears for the next ATO.",
+        "The other side does not get a full turn until you choose Pass / end turn. One pass does not end the cycle. If they also pass, aircraft still in the air land, end-of-cycle points are scored, and the board clears for the next ATO.",
         "The button reads Pass / end turn. That means this turn, not the whole game.",
     ),
     "missile_defense": (
         "Missile defense",
-        "If an attack crosses an ADA weapon zone, the attacker rolls at disadvantage automatically. A ship can defend too, but someone must declare it before the roll, and that spends one of the ship's air salvos. The disadvantage hits both the to-hit die and the damage die.",
+        "If an attack crosses an ADA weapon zone, the attacker rolls at disadvantage automatically. A ship can defend too, but someone must declare it before the roll, and that spends one of the ship's air salvos. The disadvantage hits both the to-hit die and the damage die. This is not the defender's turn — your turn ends only when you choose Pass / end turn.",
         "ADA does this for free. A ship only does it when the declare button is taken.",
     ),
     "response": (
         "A response",
-        "Some enablers are played when their trigger happens, including on the opponent's turn. A cancel undoes the damage, the kill, or the cyber gain. A recovered aircraft comes back face-down, so it must be acquired again.",
+        "Some enablers are played when their trigger happens, including on the opponent's turn. That is an answer inside the current turn, not a handoff. A cancel undoes the damage, the kill, or the cyber gain. A recovered aircraft comes back face-down, so it must be acquired again. Their full turn still waits until you Pass / end turn.",
         "If a yellow-bolt card is offered, the trigger is happening right now.",
     ),
     "damage": (
@@ -155,6 +163,11 @@ _LESSONS: dict[str, tuple[str, str, str]] = {
         "The other side also picks a posture, then squadrons and enablers, the same way you just did. You do not need to click through every one of their cards.",
         "When they finish, their squadrons and hand show on their side of the board.",
     ),
+    "opponent_intel": (
+        "Their intel",
+        "Initiative lets a side peek at enemy cards. They may look at several cards in a row. You do not need to click Continue for every peek.",
+        "When they finish, play continues with the next real choice.",
+    ),
     "roll": (
         "The die",
         "A lot of this game is a four-sided die. Click it. The face it lands on is the whole result. Advantage rolls two dice and keeps the higher. Disadvantage keeps the lower.",
@@ -172,14 +185,14 @@ _WHY = {
     "initiative": "You roll because the higher result wins initiative. That winner peeks at enemy cards with an advantage and chooses who takes the first turn.",
     "first_player": "You choose who moves first because that side gets a squadron into the air before the other side can answer.",
     "intel": "You roll because the result is how many enemy cards you may see, and a card you see is one you can plan a kill around.",
-    "turn": "This is your only chance to launch, move, spot, or shoot before the other side answers. A launch uses the whole turn. The cycle ends only when both sides pass in a row.",
-    "spawn": "You choose the band because the tokens appear there and the turn ends. Where they start decides which targets they can reach.",
+    "turn": "This is your only chance to launch, move, spot, or shoot before the other side answers. A launch blocks move-acquire-shoot, but you may still play one enabler before you pass. Their full turn starts only after you choose Pass / end turn. The cycle ends only when both sides pass in a row.",
+    "spawn": "You choose the band because the tokens appear there. After the launch you may still play one enabler, then pass. Where they start decides which targets they can reach.",
     "move": "You move one token because a shot is legal only when the shooter can reach the target, or when you need to step out of theirs.",
     "acquire": "You roll because that marker is face-down, and an air shot is illegal until this spot succeeds.",
     "shoot": "You roll because this is your one attack this turn. Meet the number on the counter and that token is destroyed.",
-    "pass": "You pass because none of the launches or shots help right now. It ends the turn and does nothing else.",
-    "missile_defense": "You are asked because this shot is crossing a weapon zone, and a worse attack roll can save the target.",
-    "response": "You are asked because the trigger is happening now, and waiting means the effect stands.",
+    "pass": "You choose Pass / end turn because that is what hands the turn to the other side. Until you do, they only answer mid-turn triggers — they do not take a full turn.",
+    "missile_defense": "You are asked because this shot is crossing a weapon zone, and a worse attack roll can save the target. This is still the attacker's turn.",
+    "response": "You are asked because the trigger is happening now, and waiting means the effect stands. This is still the current turn — not a handoff.",
     "damage": "You place each hit because where it lands is what scores. A point on a card that survives does not stay there.",
     "enabler_play": "You play this because a turn allows one enabler, and the text on the card happens now.",
     "cyber": "You roll because this is the climb toward an instant win. If the climb finishes, the points are not compared.",
@@ -189,6 +202,7 @@ _WHY = {
     "game_end": "The game is over. Cyber rate 4 wins immediately. Otherwise the higher victory-point total wins.",
     "between": "The other side is taking its turn. Your choices come back as soon as it is done.",
     "opponent_draft": "They are building the force you will fight. One Continue skips ahead to when their whole draft is done.",
+    "opponent_intel": "They are peeking at cards from the initiative intel roll. One Continue skips through every peek.",
     "roll": "You click the die because this result is random. The face it lands on is the whole answer.",
 }
 
@@ -387,6 +401,8 @@ def _concept(view: GameView) -> str:
     if view.roll_pending:
         return _roll_concept(view)
     if view.watch_pending and view.draft_skip_pending:
+        if getattr(view, "watch_batch", "") == "intel":
+            return "opponent_intel"
         return "opponent_draft"
     if view.watch_pending and _has_winchester(view):
         return "winchester"
@@ -444,10 +460,54 @@ def _has_winchester(view: GameView) -> bool:
 
 def _watch_notice(view: GameView) -> str:
     """What just happened, held on screen until the player clicks Continue."""
+    # Pass / end turn: freeze before the opponent's full turn so the handoff
+    # is obvious (mid-turn responses are a different Continue).
+    if view.watch_pending and not view.draft_skip_pending:
+        for ev in reversed(_latest_step(view)):
+            if ev.type != "decision":
+                continue
+            if (ev.data or {}).get("kind") != "pass":
+                break
+            if ev.side == view.viewer:
+                return (
+                    "You chose Pass / end turn. That hands the turn to the other side. "
+                    "Click Continue to watch their turn."
+                )
+            who = ev.side or "The other side"
+            return (
+                f"{who} passed and ended their turn. "
+                "Click Continue when you have seen it."
+            )
     if view.draft_skip_pending:
         who = "PRC" if view.viewer == "US" else "US" if view.viewer == "PRC" else "The other side"
+        batch = getattr(view, "watch_batch", "") or ""
+        if batch == "intel":
+            return (
+                f"{who} is looking at intel cards now. "
+                "Click Continue once to skip ahead to when they have finished every peek."
+            )
+        if batch == "posture":
+            return (
+                f"{who} is choosing a posture now. "
+                "Click Continue once to let them finish that pick."
+            )
+        if batch == "squadrons":
+            return (
+                f"{who} is picking and placing squadron cards now. "
+                "Click Continue once to skip ahead to when they have chosen them all."
+            )
+        if batch == "enablers":
+            return (
+                f"{who} is picking enabler cards now. "
+                "Click Continue once to skip ahead to when their hand is full."
+            )
+        if batch == "bid":
+            return (
+                f"{who} is finishing setup (initiative bid) now. "
+                "Click Continue once to let that resolve."
+            )
         return (
-            f"{who} is picking their posture, squadrons, and enablers now. "
+            f"{who} is taking several setup picks now. "
             "Click Continue to skip ahead to when they have chosen everything."
         )
     events = _latest_step(view)
@@ -467,14 +527,65 @@ def _watch_notice(view: GameView) -> str:
                     "home at the start of that side's next turn."
                 )
             break
-    for ev in reversed(events):
-        if ev.type == "decision":
-            parts.append(_plain(ev.message) + ".")
+    # After a draft streak, initiative/cyber often share the last pick's step —
+    # name the setup roll so it does not read like another single card Continue.
+    if not parts:
+        for ev in events:
+            if ev.type != "dice":
+                continue
+            msg = (ev.message or "").lower()
+            if "initiative" in msg:
+                parts.append(
+                    "Initiative is decided. "
+                    + (ev.message or "").strip().rstrip(".")
+                    + "."
+                )
+                break
+            if "cyber" in msg:
+                parts.append((ev.message or "").strip().rstrip(".") + ".")
+                break
+    # Moves: say so even when the log label is fogged, and point at the trail.
+    if not parts:
+        for ev in events:
+            data = ev.data or {}
+            is_move = (
+                ev.type == "token_moved"
+                or (ev.type == "decision" and data.get("kind") == "move")
+            )
+            if not is_move:
+                continue
+            who = ev.side or "The opponent"
+            src = data.get("from_band")
+            dst = data.get("to_band") or data.get("band")
+            if isinstance(src, str) and isinstance(dst, str) and src and dst and src != dst:
+                parts.append(
+                    f"{who} moved a piece. Follow the yellow trail from "
+                    f"{_band_short(src)} to {_band_short(dst)}."
+                )
+            else:
+                parts.append(f"{who} moved a piece on the board.")
             break
+    if not parts:
+        for ev in reversed(events):
+            if ev.type == "decision":
+                parts.append(_plain(ev.message) + ".")
+                break
     if not parts:
         parts.append("Look at what just changed on the board.")
     parts.append("Click Continue when you have seen it.")
     return " ".join(parts)
+
+
+def _band_short(band: str) -> str:
+    if band.startswith("BAND_") and len(band) == 6:
+        return f"Band {band[-1]}"
+    if band.endswith("_STANDOFF"):
+        return "standoff"
+    if band.endswith("_AIRBASE"):
+        return "the airbase"
+    if "CONTINGENCY" in band:
+        return "the contingency location"
+    return band.replace("_", " ").title()
 
 
 def _now(view: GameView) -> str:
@@ -542,9 +653,129 @@ def _just(view: GameView) -> str:
     return events[-1].message
 
 
+def _event_side(ev) -> str:
+    """Best-effort side for a log event (decision, dice roll, or message prefix)."""
+    if ev.side in ("US", "PRC"):
+        return ev.side
+    data = ev.data or {}
+    for roll in data.get("rolls") or []:
+        if isinstance(roll, dict) and roll.get("side") in ("US", "PRC"):
+            return roll["side"]
+    msg = ev.message or ""
+    if msg.startswith("US ") or msg.startswith("US:"):
+        return "US"
+    if msg.startswith("PRC ") or msg.startswith("PRC:"):
+        return "PRC"
+    return ""
+
+
+def _watch_focus(
+    view: GameView,
+) -> tuple[str, list[int], list[str], list[str], list[str], list[int], list[str]]:
+    """Side + art + labels + bands + board uids + move trail for Continue.
+
+    Works for both the human (US) and the AI (PRC): the yellow blink follows
+    whoever just acted on the held step. Board token uids win over coach-strip art.
+    """
+    events = _latest_step(view)
+    side = ""
+    # Match the Continue banner: narrate the decision, not follow-on dice /
+    # cyber diffs in the same step (those often tag the other side).
+    for ev in reversed(events):
+        if ev.type == "decision":
+            side = _event_side(ev)
+            if side:
+                break
+    if not side:
+        for ev in reversed(events):
+            side = _event_side(ev)
+            if side:
+                break
+    if view.draft_skip_pending and view.viewer in ("US", "PRC"):
+        # Hold is "they are drafting now" before any of their picks land.
+        side = "PRC" if view.viewer == "US" else "US"
+    cards: list[int] = []
+    tokens: list[str] = []
+    labels: list[str] = []
+    bands: list[str] = []
+    uids: list[int] = []
+    trail: list[str] = []
+    for ev in events:
+        # Art/labels for the blink come from the acting side's decision only.
+        if side and ev.type == "decision" and _event_side(ev) not in ("", side):
+            continue
+        data = ev.data or {}
+        for key in ("uid", "actor_uid", "target_uid"):
+            uid = data.get(key)
+            if isinstance(uid, int) and uid not in uids:
+                uids.append(uid)
+        cid = data.get("card_id")
+        if isinstance(cid, int) and cid not in cards:
+            cards.append(cid)
+        from_band = data.get("from_band")
+        to_band = data.get("to_band") or data.get("band")
+        if isinstance(from_band, str) and from_band and from_band not in bands:
+            bands.append(from_band)
+        if isinstance(to_band, str) and to_band and to_band not in bands:
+            bands.append(to_band)
+        # Prefer an explicit move decision / token_moved for the trail arrow.
+        if not trail and isinstance(from_band, str) and isinstance(to_band, str) \
+                and from_band and to_band and from_band != to_band:
+            if ev.type == "token_moved" or (ev.type == "decision" and data.get("kind") == "move"):
+                trail = [from_band, to_band]
+        ev_side = _event_side(ev) or side
+        if ev.type == "decision":
+            # "PRC TURN_ACTION: Attrition" → label after ": "
+            _, _, label = (ev.message or "").partition(": ")
+            label = label.strip()
+            if label and label not in labels:
+                labels.append(label)
+            tokens.extend(_slugs(label, ev_side))
+        tokens.extend(_slugs(ev.message or "", ev_side))
+    if not side:
+        # Unlabeled result after your own roll → blink your column.
+        side = view.viewer or ""
+    # Activate / kills / damage often omit band on the decision. Prefer event
+    # payload bands, then where focus uids still sit on the board, then airbase
+    # when the log is about base boxes or squadron cards.
+    if uids and view.board is not None:
+        want = set(uids)
+        for band_view in view.board.bands:
+            for tok in band_view.tokens or []:
+                if tok.uid in want and band_view.band not in bands:
+                    bands.append(band_view.band)
+    # Base / squadron-card hits: blink that side's airbase column.
+    for ev in events:
+        data = ev.data or {}
+        msg = (ev.message or "").lower()
+        home = ""
+        if isinstance(data.get("band"), str) and data["band"].endswith("AIRBASE"):
+            home = data["band"]
+        elif ev.type in ("squadron_damage", "squadron_destroyed"):
+            tag = ev.side or side
+            if tag in ("US", "PRC"):
+                home = f"{tag}_AIRBASE"
+        elif ev.type == "decision" and (
+            "airbase" in msg or "vp box" in msg
+        ):
+            tag = ev.side or side
+            if tag in ("US", "PRC"):
+                home = f"{tag}_AIRBASE"
+        if home and home not in bands:
+            bands.append(home)
+    seen: list[str] = []
+    for slug in tokens:
+        if slug not in seen:
+            seen.append(slug)
+    return side, cards[:4], seen[:3], labels[:4], bands[:4], uids[:6], trail[:2]
+
+
 def _art(view: GameView, concept: str) -> tuple[list[int], list[str]]:
     cards: list[int] = []
     tokens: list[str] = []
+    if view.watch_pending:
+        _side, cards, tokens, _labels, _bands, _uids, _trail = _watch_focus(view)
+        return cards, tokens
     side = view.decision.side if view.decision else None
     if view.decision:
         for choice in view.decision.choices:
@@ -656,7 +887,8 @@ def _squadron_reason(card_id: int | None) -> str:
             " You take it because those aircraft are how you shoot theirs down."
         )
         return (
-            f"{opening} Launching it spends the turn and puts {n} aircraft on your front band. "
+            f"{opening} Launching it puts {n} aircraft on your front band "
+            f"(you may still play one enabler before you pass). "
             f"{fight}{extra}{why}"
         )
     if kind == TokenScoreType.BOMBER:
@@ -687,7 +919,7 @@ def _squadron_reason(card_id: int | None) -> str:
                 f"{token.surf_atk_thresh} or better."
             )
         return (
-            f"These are attack drones. Launching the card spends the turn and puts {n} of them "
+            f"These are attack drones. Launching the card puts {n} of them "
             "in the air, and they may start on any of the five center bands. "
             f"{shot} You take the card so you can hit a base or a ship from a band your fighters "
             "do not launch from."
@@ -716,7 +948,7 @@ def _squadron_reason(card_id: int | None) -> str:
             "rolls two dice and keeps the worse one. You take it to spoil a shot your aircraft cannot stop."
         )
     return (
-        f"This card puts {n} pieces on the board when you launch it, and the launch spends the turn. "
+        f"This card puts {n} pieces on the board when you launch it. "
         "You take it because a card left in the deck never reaches the fight."
     )
 
@@ -748,28 +980,57 @@ def _enabler_reason(card_id: int | None) -> str:
     return f"{effect}{timing}{stay}"
 
 
+# Preferred US fighters for the tutorial "air control" lesson (F-22, F-35, F-15, F-16).
+_AIR_FIGHTER_IDS = (5, 8, 6, 10)
+
+
+def _best_fighter(choices: list[ChoiceView]) -> ChoiceView | None:
+    for card_id in _AIR_FIGHTER_IDS:
+        hit = _find(choices, lambda c, cid=card_id: c.card_id == cid)
+        if hit is not None:
+            return hit
+    return _find(choices, lambda c: (
+        _squadron_token(c.card_id) is not None
+        and _squadron_token(c.card_id).token_score_type == TokenScoreType.FIGHTER
+    ))
+
+
+def _fighter_draft_count(view: GameView) -> int:
+    n = 0
+    for nm in _drafted_names(view):
+        for cid, prof in SQUADRON_REGISTRY.items():
+            if prof.name != nm:
+                continue
+            tok = _squadron_token(cid)
+            if tok is not None and tok.token_score_type == TokenScoreType.FIGHTER:
+                n += 1
+            break
+    return n
+
+
 def _suggest_draft(view: GameView) -> str:
+    """Tutorial draft: AEW + fighters so the student can launch and shoot,
+    not a bomber stack that dies on the airbase to the first missile card."""
     choices = view.decision.choices
     owned = _drafted_scores(view)
-    wanted = (
-        TokenScoreType.UAS,
-        TokenScoreType.BOMBER,
-        TokenScoreType.FIGHTER,
-    )
-    for score in wanted:
-        if score in owned:
-            continue
-        if score == TokenScoreType.FIGHTER:
-            fighter = _find(choices, lambda c: c.card_id == 10)
-            if fighter is not None:
-                return _say(fighter, _squadron_reason(fighter.card_id))
-        match = _find(choices, lambda c, score=score: (
+    names = _drafted_names(view)
+    # 1) Spotter first — air shots are illegal until something is acquired.
+    if TokenScoreType.AEW not in owned:
+        aew = _find(choices, lambda c: (
             _squadron_token(c.card_id) is not None
-            and _squadron_token(c.card_id).token_score_type == score
+            and _squadron_token(c.card_id).token_score_type == TokenScoreType.AEW
         ))
-        if match is not None:
-            return _say(match, _squadron_reason(match.card_id))
-    if len(_drafted_names(view)) < 4:
+        if aew is not None:
+            return _say(aew, _squadron_reason(aew.card_id))
+    # 2–3) Fighters so the roster can fight once it is up.
+    if _fighter_draft_count(view) < 2:
+        fighter = _best_fighter(choices)
+        if fighter is not None:
+            return _say(fighter, _squadron_reason(fighter.card_id))
+    if len(names) < 4:
+        fighter = _best_fighter(choices)
+        if fighter is not None:
+            return _say(fighter, _squadron_reason(fighter.card_id))
         bomber = _find(choices, lambda c: (
             _squadron_token(c.card_id) is not None
             and _squadron_token(c.card_id).token_score_type == TokenScoreType.BOMBER
@@ -777,18 +1038,11 @@ def _suggest_draft(view: GameView) -> str:
         if bomber is not None:
             return _say(bomber, _squadron_reason(bomber.card_id))
     done = _find(choices, lambda c: c.kind == "done")
-    if done is not None:
-        return _say(done, "You already have drones, a bomber, and a fighter. Stop the draft here.")
-    extra = (TokenScoreType.AEW, TokenScoreType.ADA)
-    for score in extra:
-        if score in owned:
-            continue
-        match = _find(choices, lambda c, score=score: (
-            _squadron_token(c.card_id) is not None
-            and _squadron_token(c.card_id).token_score_type == score
-        ))
-        if match is not None:
-            return _say(match, _squadron_reason(match.card_id))
+    if done is not None and len(names) >= 3:
+        return _say(
+            done,
+            "You have a spotter and fighters. Stop here so you can learn to launch and shoot them.",
+        )
     pick = next((c for c in choices if c.kind == "pick"), choices[0])
     return _say(pick, _squadron_reason(pick.card_id))
 
@@ -845,17 +1099,37 @@ def _suggest_turn(view: GameView) -> str:
     for hand in view.hands:
         if hand.side == side:
             played = hand.spent_count
-    if enablers and played == 0 and not airborne:
-        def generates(choice: ChoiceView) -> bool:
-            profile = ENABLER_REGISTRY.get(choice.card_id) if choice.card_id else None
-            return profile is not None and profile.generates_token is not None
+    # Get aircraft up before playing hand cards or bombers — cards left on the
+    # airbase die to the first hypersonic / missile without teaching a launch.
+    if launches and not squadron_up:
+        def launch_score(choice: ChoiceView) -> int:
+            tok = _squadron_token(choice.card_id)
+            if tok is None:
+                return 9
+            if tok.token_score_type == TokenScoreType.AEW:
+                return 0
+            if tok.token_score_type == TokenScoreType.FIGHTER:
+                return 1
+            if tok.token_score_type == TokenScoreType.BOMBER:
+                return 3
+            return 2
 
-        generators = sorted(
-            (c for c in enablers if generates(c)),
-            key=lambda c: c.card_id or 0,
+        pick = min(launches, key=launch_score)
+        why = (
+            "Launch the spotter first so later air shots can flip a face-down target."
+            if launch_score(pick) == 0 else
+            "Get fighters in the air now. Cards left on the airbase can be destroyed by a missile before you ever launch them."
+            if launch_score(pick) == 1 else
+            "You have no aircraft in the air yet. Launching starts the fight; you can still play one enabler before you pass."
         )
-        if generators:
-            return _say(generators[0], _enabler_reason(generators[0].card_id))
+        return _say(pick, why)
+    if enablers and played == 0 and squadron_up:
+        # Air-control hand cards after something is airborne.
+        prefer = (19, 26, 27, 31, 12, 29)  # munitions, spoofing, def EW, space recon, recovery, decoy
+        for cid in prefer:
+            hit = _find(enablers, lambda c, i=cid: c.card_id == i)
+            if hit is not None:
+                return _say(hit, _enabler_reason(hit.card_id))
     bomber_launch = [
         c for c in launches
         if _squadron_token(c.card_id) is not None
@@ -865,13 +1139,11 @@ def _suggest_turn(view: GameView) -> str:
         token for token in squadron_up
         if token.type and ("B-52" in token.type or "H-6" in token.type)
     ]
-    if bomber_launch and not bomber_up:
+    if bomber_launch and not bomber_up and squadron_up:
         return _say(
             bomber_launch[0],
             "A bomber can strike the enemy airbase without a spot. That fills a point box and scores 1 victory point.",
         )
-    if launches and not squadron_up:
-        return _say(launches[0], "You have no aircraft in the air yet. Launching starts the fight, and it uses the whole turn.")
     surface = [c for c in choices if c.kind == "shoot_surface"]
     if surface:
         return _say(surface[0], "A base strike does not need a spot first. Filling an airbase box scores 1 victory point.")
@@ -906,24 +1178,31 @@ def _suggest_enabler(view: GameView) -> str:
         if hand.side == side:
             held = len(hand.cards)
     done = _find(choices, lambda c: c.kind == "done")
-    if held >= 2 and done is not None:
-        return _say(done, "Two enablers are enough to learn the hand. You may play one of them on your turn.")
+    # Keep a fuller air-control hand (munitions / spoofing / spotters), not just
+    # two token-spawn cards that encourage sitting on the airbase.
+    if held >= 4 and done is not None:
+        return _say(done, "Four enablers is enough to learn the hand. You may play one of them on your turn.")
 
     def draft_pick(choice: ChoiceView) -> bool:
         profile = ENABLER_REGISTRY.get(choice.card_id) if choice.card_id else None
         return bool(profile is not None and choice.kind == "pick" and choice.label == profile.name)
 
+    # Air-control picks first (match Example drafts → Air control).
+    _AIR_ENABLER_IDS = (19, 26, 27, 31, 12, 29)
+
     def rank(choice: ChoiceView) -> tuple[int, int]:
         profile = ENABLER_REGISTRY.get(choice.card_id) if choice.card_id else None
         if profile is None:
             return (9, choice.card_id or 0)
-        if profile.generates_token is not None and profile.is_not_response:
-            return (0, choice.card_id or 0)
+        if choice.card_id in _AIR_ENABLER_IDS:
+            return (0, _AIR_ENABLER_IDS.index(choice.card_id))
         if profile.is_not_response and profile.is_enduring:
             return (1, choice.card_id or 0)
-        if profile.is_not_response:
+        if profile.is_not_response and profile.generates_token is None:
             return (2, choice.card_id or 0)
-        return (3, choice.card_id or 0)
+        if profile.generates_token is not None and profile.is_not_response:
+            return (3, choice.card_id or 0)
+        return (4, choice.card_id or 0)
 
     picks = [c for c in choices if draft_pick(c)]
     if picks:
@@ -1001,6 +1280,20 @@ def explain(view: GameView) -> CoachNote:
     """Teaching note for whatever the spectator is looking at right now."""
     concept = _concept(view)
     title, lesson, look = _LESSONS[concept]
+    cards, tokens = _art(view, concept)
+    watch_side = ""
+    watch_labels: list[str] = []
+    watch_bands: list[str] = []
+    watch_uids: list[int] = []
+    watch_trail: list[str] = []
+    if view.watch_pending:
+        watch_side, w_cards, w_tokens, watch_labels, watch_bands, watch_uids, watch_trail = (
+            _watch_focus(view)
+        )
+        if w_cards:
+            cards = w_cards
+        if w_tokens:
+            tokens = w_tokens
     return CoachNote(
         revision=view.revision,
         concept=concept,
@@ -1012,6 +1305,11 @@ def explain(view: GameView) -> CoachNote:
         look=look,
         suggest=_suggest(view),
         hold="watch" if view.watch_pending else "",
-        cards=_art(view, concept)[0],
-        tokens=_art(view, concept)[1],
+        cards=cards,
+        tokens=tokens,
+        watch_side=watch_side,
+        watch_labels=watch_labels,
+        watch_bands=watch_bands,
+        watch_uids=watch_uids,
+        watch_trail=watch_trail,
     )

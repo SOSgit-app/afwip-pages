@@ -305,12 +305,17 @@
     return effects;
   }
 
-  function slidePiece(uid, from, to) {
+  function pieceGroup(uid) {
     const title = tokenTitle(uid);
-    const g = title && title.parentElement;
+    return title && title.parentElement ? title.parentElement : null;
+  }
+
+  function slideOffset(from, to) {
+    // Map screen-space from/to into the board SVG so a translate parks the
+    // token (already painted at `to`) back over `from`.
     const svg = board();
     const ctm = svg && svg.getScreenCTM();
-    if (!g || !ctm) return;
+    if (!ctm || !from || !to) return null;
     const inv = ctm.inverse();
     function user(point) {
       const pt = svg.createSVGPoint();
@@ -320,8 +325,46 @@
     }
     const start = user(from);
     const end = user(to);
-    const dx = start.x - end.x;
-    const dy = start.y - end.y;
+    return { dx: start.x - end.x, dy: start.y - end.y };
+  }
+
+  function parkPiece(uid, from, to) {
+    // React already put the chip on the destination band; offset it so the
+    // player never sees a one-frame teleport before the slide.
+    const g = pieceGroup(uid);
+    const off = slideOffset(from, to);
+    if (!g || !off) return false;
+    g.setAttribute("transform", "translate(" + off.dx + " " + off.dy + ")");
+    return true;
+  }
+
+  function clearPark(uid) {
+    const g = pieceGroup(uid);
+    if (g) g.removeAttribute("transform");
+  }
+
+  function parkSlides(effects) {
+    effects.forEach((fx) => {
+      if ((fx.kind === "move" || fx.kind === "spawn") && fx.from && fx.to) {
+        parkPiece(fx.uid, fx.from, fx.to);
+      }
+    });
+  }
+
+  function clearParkedSlides(effects) {
+    effects.forEach((fx) => {
+      if ((fx.kind === "move" || fx.kind === "spawn") && fx.uid != null) {
+        clearPark(fx.uid);
+      }
+    });
+  }
+
+  function slidePiece(uid, from, to) {
+    const g = pieceGroup(uid);
+    const off = slideOffset(from, to);
+    if (!g || !off) return;
+    const dx = off.dx;
+    const dy = off.dy;
     const distance = Math.hypot(to.x - from.x, to.y - from.y);
     const ms = dur(Math.min(980, 460 + distance * 0.4));
     window.__afwipLastSlide = { uid: String(uid), at: performance.now() };
@@ -342,7 +385,12 @@
   function screened(fx) {
     const duel = window.__afwipDuel;
     if (!duel || performance.now() - duel.at > 20000) return false;
-    if (fx.kind === "move" || fx.kind === "cyber") return false;
+    // Spawn must run like move: parkSlides parked a transform that only
+    // slidePiece clears. Skipping Personnel Recovery (same uid as the kill)
+    // left the chip translated off Band A / clipped — "back but invisible".
+    if (fx.kind === "move" || fx.kind === "spawn" || fx.kind === "cyber") {
+      return false;
+    }
     const ids = [fx.from, fx.to, fx.uid].filter((id) => id != null).map(String);
     return ids.some((id) => id === String(duel.from) || id === String(duel.to));
   }
@@ -351,7 +399,12 @@
     const now = performance.now();
     const sparked = new Set();
     effects.forEach((fx) => {
-      if (screened(fx)) return;
+      if (screened(fx)) {
+        if ((fx.kind === "move" || fx.kind === "spawn") && fx.uid != null) {
+          clearPark(fx.uid);
+        }
+        return;
+      }
       if (fx.kind === "missile") {
         const from = tokenAt(fx.from);
         const to = tokenAt(fx.to);
@@ -396,23 +449,38 @@
   }
   function runWhenClear(effects) {
     const started = performance.now();
+    // Moves/spawns are already parked at origin — play ASAP. Other FX still
+    // wait a beat so React can finish layout before missiles/sensors fire.
+    const onlySlide = effects.length > 0 && effects.every(
+      (fx) => fx.kind === "move" || fx.kind === "spawn"
+    );
+    const settleMs = onlySlide ? 0 : 280;
     function tick() {
+      // Keep movers parked if React replaces the <g> during the wait.
+      parkSlides(effects);
       if (dieOpen()) {
         const die = document.getElementById("die-overlay");
         const watch = new MutationObserver(() => {
           if (die.hidden) {
             watch.disconnect();
+            parkSlides(effects);
             play(effects);
           }
         });
         watch.observe(die, { attributes: true, attributeFilter: ["hidden"] });
         window.setTimeout(() => {
           watch.disconnect();
-          if (!dieOpen()) play(effects);
+          if (!dieOpen()) {
+            parkSlides(effects);
+            play(effects);
+          } else {
+            // Die still open — do not leave parked transforms stuck off-band.
+            clearParkedSlides(effects);
+          }
         }, 20000);
         return;
       }
-      if (performance.now() - started < 280) {
+      if (performance.now() - started < settleMs) {
         requestAnimationFrame(tick);
         return;
       }
@@ -491,20 +559,40 @@
     if (!fresh.length) return;
     watermark = maxStep;
     const epoch = ++boardEpoch;
-    // Wait for React to paint the new token positions, then slide from the
-    // settled map (pre-move) to the live board.
-    function afterPaint(effects) {
-      if (epoch !== boardEpoch) return;
-      if (!effects.length) {
-        settlePositions();
-        return;
-      }
+    // __afwipApply only setStates — React paints later. Watch the board DOM and
+    // park movers in that mutation turn (before the browser paints) so the chip
+    // never flashes on the destination, then slide.
+    let finished = false;
+    function finish() {
+      if (finished || epoch !== boardEpoch) return;
+      const effects = bindEffects(fresh);
+      // Wait until live positions actually differ from the settled map.
+      if (!effects.length) return;
+      finished = true;
+      if (obs) obs.disconnect();
+      parkSlides(effects);
       runWhenClear(effects);
       window.setTimeout(settlePositions, reduce ? 200 : 900);
     }
+    let obs = null;
+    const svg = board();
+    if (svg && typeof MutationObserver !== "undefined") {
+      obs = new MutationObserver(() => {
+        try { finish(); } catch (e) { /* ignore */ }
+      });
+      obs.observe(svg, { childList: true, subtree: true });
+    }
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        afterPaint(bindEffects(fresh));
+        if (epoch !== boardEpoch) return;
+        if (!finished) {
+          // No move/spawn distance yet (or no MO) — settle other steps / retry once.
+          finish();
+          if (!finished) {
+            if (obs) obs.disconnect();
+            settlePositions();
+          }
+        }
       });
     });
   }

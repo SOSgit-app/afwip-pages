@@ -79,8 +79,16 @@
   }
   function hintFor(data) {
     if (data.hold === "watch") {
-      if (/skip ahead/i.test(data.suggest || "")) return "Click Continue once to let them finish their draft.";
-      return "Look at the board, then click Continue.";
+      if (/Pass \/ end turn|hands the turn/i.test(data.suggest || "")) {
+        return "You ended your turn — click Continue to watch theirs.";
+      }
+      if (/every peek|intel cards/i.test(data.suggest || "")) {
+        return "Click Continue once — they finish all intel peeks in one jump.";
+      }
+      if (/skip ahead|picking enabler|picking and placing squadron|choosing a posture|initiative bid/i.test(data.suggest || "")) {
+        return "Click Continue once to let them finish this stretch.";
+      }
+      return "Yellow blink marks what they just did — then click Continue.";
     }
     if (dieNote(data) || rolling()) return "Click the die.";
     const label = quotedPick(data.suggest || "");
@@ -239,6 +247,326 @@
     dock.classList.remove("first");
     fit();
     markPick();
+    markWatchHits(data);
+    // React may paint new spawn tokens a tick later — re-apply a few times.
+    if (data.hold === "watch") {
+      [80, 200, 450, 900].forEach((ms) => {
+        window.setTimeout(() => markWatchHits(data), ms);
+      });
+    }
+  }
+
+  let trailHold = null; // { from, to, side } while Continue is up
+  let trailTimer = null;
+
+  function clearWatchHits() {
+    document.querySelectorAll(".live-watch-hit").forEach((el) => {
+      el.classList.remove("live-watch-hit");
+    });
+    clearWatchTrail();
+    document.body.classList.remove("afwip-watch-hit");
+  }
+
+  function clearWatchTrail() {
+    trailHold = null;
+    if (trailTimer) {
+      window.clearInterval(trailTimer);
+      trailTimer = null;
+    }
+    document.querySelectorAll(".live-watch-trail").forEach((el) => el.remove());
+  }
+
+  function trailLayer() {
+    // Fixed overlay (not inside React's board SVG) so re-renders cannot wipe it.
+    let layer = document.getElementById("live-watch-trail-layer");
+    if (layer) return layer;
+    layer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    layer.id = "live-watch-trail-layer";
+    layer.setAttribute("aria-hidden", "true");
+    document.body.append(layer);
+    return layer;
+  }
+
+  function fitTrailLayer() {
+    const layer = trailLayer();
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    layer.setAttribute("viewBox", "0 0 " + w + " " + h);
+    layer.setAttribute("width", String(w));
+    layer.setAttribute("height", String(h));
+  }
+
+  function bandScreenCenter(band, side) {
+    const rect = boardBandRect(band, side);
+    if (!rect) return null;
+    const box = rect.getBoundingClientRect();
+    if (box.width < 2 && box.height < 2) return null;
+    return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+  }
+
+  function drawWatchTrail(fromBand, toBand, side) {
+    if (!fromBand || !toBand || fromBand === toBand) return;
+    fitTrailLayer();
+    const layer = trailLayer();
+    const from = bandScreenCenter(fromBand, side);
+    const to = bandScreenCenter(toBand, side);
+    if (!from || !to) return;
+    layer.replaceChildren();
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    g.setAttribute("class", "live-watch-trail");
+    g.setAttribute("pointer-events", "none");
+    const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+    const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+    marker.setAttribute("id", "live-watch-trail-head");
+    marker.setAttribute("viewBox", "0 0 10 10");
+    marker.setAttribute("refX", "9");
+    marker.setAttribute("refY", "5");
+    marker.setAttribute("markerWidth", "8");
+    marker.setAttribute("markerHeight", "8");
+    marker.setAttribute("orient", "auto");
+    const tip = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    tip.setAttribute("d", "M 0 0 L 10 5 L 0 10 z");
+    tip.setAttribute("class", "live-watch-trail-head");
+    marker.appendChild(tip);
+    defs.appendChild(marker);
+    g.appendChild(defs);
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", String(from.x));
+    line.setAttribute("y1", String(from.y));
+    line.setAttribute("x2", String(to.x));
+    line.setAttribute("y2", String(to.y));
+    line.setAttribute("class", "live-watch-trail-line");
+    line.setAttribute("marker-end", "url(#live-watch-trail-head)");
+    g.appendChild(line);
+    const origin = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    origin.setAttribute("cx", String(from.x));
+    origin.setAttribute("cy", String(from.y));
+    origin.setAttribute("r", "8");
+    origin.setAttribute("class", "live-watch-trail-origin");
+    g.appendChild(origin);
+    layer.appendChild(g);
+  }
+
+  function holdWatchTrail(fromBand, toBand, side) {
+    trailHold = { from: fromBand, to: toBand, side: side };
+    drawWatchTrail(fromBand, toBand, side);
+    if (trailTimer) window.clearInterval(trailTimer);
+    // Keep redrawing: React board paints and window resizes move band rects.
+    trailTimer = window.setInterval(() => {
+      if (!trailHold) return;
+      drawWatchTrail(trailHold.from, trailHold.to, trailHold.side);
+    }, 250);
+  }
+
+  function sideRoot(side) {
+    if (side === "PRC") {
+      return document.querySelector(".side-col-prc") || document.querySelector(".side-col");
+    }
+    if (side === "US") {
+      return document.querySelector(".right-col");
+    }
+    return null;
+  }
+
+  function viewerSide() {
+    return document.body.classList.contains("afwip-viewer-prc") ? "PRC" : "US";
+  }
+
+  function watchSideFromData(data) {
+    // Banner text is what the student reads — trust it over a stale/wrong field.
+    const sug = (data.suggest || "").replace(/\s+/g, " ").trim();
+    const named = sug.match(/^(US|PRC)\b/);
+    if (named) return named[1];
+    if (data.watch_side === "US" || data.watch_side === "PRC") return data.watch_side;
+    if (/\bYour aircraft\b/i.test(sug) || /\bYou /i.test(sug.slice(0, 24))) {
+      return viewerSide();
+    }
+    return viewerSide();
+  }
+
+  function boardTokenEl(uid) {
+    const svg = document.querySelector(".board-svg");
+    if (!svg || uid == null) return null;
+    const title = [...svg.querySelectorAll("title")].find((node) => {
+      const match = (node.textContent || "").match(/#(\d+)/);
+      return match && match[1] === String(uid);
+    });
+    return title && title.parentElement ? title.parentElement : null;
+  }
+
+  function boardTokensByTitle(regex) {
+    const svg = document.querySelector(".board-svg");
+    if (!svg || !regex) return [];
+    return [...svg.querySelectorAll("title")]
+      .filter((node) => regex.test(node.textContent || ""))
+      .map((node) => node.parentElement)
+      .filter(Boolean);
+  }
+
+  function boardWinchesterEls(side) {
+    return boardTokensByTitle(/Winchester/i).filter((el) => {
+      if (!side) return true;
+      const text = (el.querySelector("title") && el.querySelector("title").textContent) || "";
+      return text.indexOf("(" + side + ")") !== -1;
+    });
+  }
+
+  function largestRect(root) {
+    if (!root) return null;
+    const rects = [...root.querySelectorAll("rect")];
+    rects.sort((a, b) => {
+      const aa = parseFloat(a.getAttribute("width") || 0) * parseFloat(a.getAttribute("height") || 0);
+      const bb = parseFloat(b.getAttribute("width") || 0) * parseFloat(b.getAttribute("height") || 0);
+      return bb - aa;
+    });
+    return rects[0] || null;
+  }
+
+  function boardBandRect(band, side) {
+    const svg = document.querySelector(".board-svg");
+    if (!svg || !band) return null;
+    const labels = {
+      US_STANDOFF: "STAND OFF",
+      PRC_STANDOFF: "STAND OFF",
+      US_AIRBASE: "US AIRBASE",
+      PRC_AIRBASE: "PRC AIRBASE",
+      US_CONTINGENCY_LOCATION: "CONTINGENCY LOC.",
+    };
+    const name = labels[band];
+    if (name) {
+      let texts = [...svg.querySelectorAll("text")].filter(
+        (t) => (t.textContent || "").trim() === name
+      );
+      if (band.endsWith("STANDOFF") && texts.length > 1) {
+        texts.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
+        texts = [band.startsWith("US") ? texts[texts.length - 1] : texts[0]];
+      }
+      return largestRect(texts[0] && texts[0].parentElement);
+    }
+    // Center bands: US numerals 1..5 are upright at the top (Band A = blue 1).
+    // PRC numerals are rotate(180) at the bottom and inverted (same column's
+    // PRC "1" is US Band E). Match the acting side's numeral, not the first "1".
+    const m = /^BAND_([A-E])$/.exec(band);
+    if (m) {
+      const usNum = m[1].charCodeAt(0) - 64;
+      const forPrc = side === "PRC";
+      const want = String(forPrc ? 6 - usNum : usNum);
+      const candidates = [...svg.querySelectorAll("text")].filter(
+        (t) => (t.textContent || "").trim() === want
+      );
+      const label = candidates.find((t) => {
+        const rotated = /rotate\s*\(\s*180/i.test(t.getAttribute("transform") || "");
+        return forPrc ? rotated : !rotated;
+      }) || candidates[0];
+      return largestRect(label && label.parentElement);
+    }
+    return null;
+  }
+
+  function slugTitleRegex(slug) {
+    if (!slug) return null;
+    const core = String(slug).replace(/-(us|prc)$/i, "").replace(/-/g, "[-\\s]?");
+    try {
+      return new RegExp(core, "i");
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function markWatchHits(data) {
+    clearWatchHits();
+    if (!data || data.hold !== "watch") return;
+    // Batch skips (whole draft / all intel peeks) — no single thing to point at.
+    if (/skip ahead|every peek|intel cards now|finish their draft|chosen everything|picking enabler|picking and placing squadron|choosing a posture|initiative bid/i.test(data.suggest || "")) {
+      return;
+    }
+    document.body.classList.add("afwip-watch-hit");
+    const side = watchSideFromData(data);
+    const root = sideRoot(side);
+    const cards = data.cards || [];
+    const tokens = data.tokens || [];
+    const labels = data.watch_labels || [];
+    const bands = data.watch_bands || [];
+    const uids = data.watch_uids || [];
+    let hits = 0;
+
+    function hit(el) {
+      if (!el || el.classList.contains("live-watch-hit")) return;
+      // Never blink the coach art strip — students need the board piece.
+      if (el.closest && (el.closest("#live-coach") || el.closest("#live-art"))) return;
+      el.classList.add("live-watch-hit");
+      // Board counters: outer <g> wraps an inner face/fog <g> that holds the body rect.
+      // title is a sibling of that inner g — so ":scope > rect" misses the tile.
+      if (el.closest && el.closest(".board-svg") && el.tagName === "g") {
+        let body = el.querySelector(":scope > g > rect");
+        if (!body) {
+          const rects = [...el.querySelectorAll("rect")];
+          body = rects.sort((a, b) => {
+            const aa = parseFloat(a.getAttribute("width") || 0) * parseFloat(a.getAttribute("height") || 0);
+            const bb = parseFloat(b.getAttribute("width") || 0) * parseFloat(b.getAttribute("height") || 0);
+            return bb - aa;
+          })[0];
+        }
+        if (body) body.classList.add("live-watch-hit", "live-watch-hit-body");
+      }
+      hits += 1;
+    }
+
+    function imgsIn(scope, sel) {
+      return [...(scope || document).querySelectorAll(sel)].filter((img) => {
+        return !(img.closest && (img.closest("#live-coach") || img.closest("#live-art")));
+      });
+    }
+
+    // Board counters first (spawn / Winchester / kill) — SVG groups, not banner imgs.
+    uids.forEach((uid) => hit(boardTokenEl(uid)));
+    tokens.forEach((slug) => {
+      const re = slugTitleRegex(slug);
+      if (re) boardTokensByTitle(re).forEach((el) => hit(el));
+    });
+    labels.forEach((lab) => {
+      if (!lab || lab === "(hidden)" || lab === "(Hidden)") return;
+      // "US_STANDOFF" is a band, not a token name.
+      if (/^(US|PRC)_/.test(lab) || /^BAND_/.test(lab)) return;
+      try {
+        boardTokensByTitle(new RegExp(lab.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i")).forEach((el) => hit(el));
+      } catch (e) { /* ignore */ }
+    });
+    if (!hits && (/Winchester/i.test(data.suggest || "") || data.concept === "winchester")) {
+      boardWinchesterEls(side).forEach((el) => hit(el));
+    }
+
+    bands.forEach((band) => {
+      const rect = boardBandRect(band, side);
+      if (rect) hit(rect);
+      document.querySelectorAll(".board-svg rect.home-pick, .board-svg rect.home-pick-hot").forEach((r) => {
+        const cls = r.getAttribute("class") || "";
+        if (band.indexOf("AIRBASE") !== -1 && cls.indexOf("home-pick") !== -1) hit(r);
+      });
+    });
+
+    const trail = data.watch_trail || [];
+    if (trail.length >= 2 && data.hold === "watch") {
+      holdWatchTrail(trail[0], trail[1], side);
+    }
+
+    cards.forEach((id) => {
+      const sel = 'img[src*="/art/cards/' + id + '.jpg"]';
+      const scoped = root ? imgsIn(root, sel) : [];
+      (scoped.length ? scoped : imgsIn(document, sel)).forEach((img) => {
+        hit(img.closest(".card-cell") || img.closest(".card-thumb") || img);
+      });
+    });
+
+    tokens.forEach((slug) => {
+      const sel = 'img[src*="/art/tokens/' + slug + '.jpg"]';
+      imgsIn(document, sel).forEach((img) => {
+        hit(img.closest(".trophy") || img.closest(".token-pop") || img);
+      });
+    });
+
+    // Nothing on the board → pulse that side's column (never the banner art).
+    if (!hits && root) hit(root);
   }
 
   let scrolledPick = "";
@@ -301,6 +629,7 @@
     if (!wanted()) {
       dock.hidden = true;
       document.body.classList.remove("afwip-live");
+      clearWatchHits();
       hideCard();
       fit();
       await syncContinueBtn();
@@ -371,6 +700,7 @@
     const game = readGame();
     if (!game || typeof window.__afwipApply !== "function") return;
     continueBtn.disabled = true;
+    clearWatchHits();
     try {
       const res = await fetch("/api/games/" + game.id + "/watch", { method: "POST" });
       if (!res.ok) return;

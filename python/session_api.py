@@ -81,6 +81,8 @@ def _dispatch(method: str, url: str, body_text: str) -> dict:
 
     if path == "/api/games" and method == "POST":
         return _create(body)
+    if path == "/api/games/restore" and method == "POST":
+        return _restore(body)
 
     parts = [p for p in path.split("/") if p]
     # ["api", "games", "{id}", ...]
@@ -94,6 +96,8 @@ def _dispatch(method: str, url: str, body_text: str) -> dict:
         return _get(game_id, qs.get("viewer"))
     if not action and method == "DELETE":
         return _delete(game_id)
+    if action == "save" and method == "GET":
+        return _save(game_id)
     if action == "choices" and method == "POST":
         return _choices(game_id, body)
     if action == "step" and method == "POST":
@@ -138,13 +142,37 @@ def _create(body: dict) -> dict:
             human_side=side,
             seed=body.get("seed"),
             agent_name=agent,
-            record=False,
+            # Keep a decision tape so Save / Load works in the browser.
+            record=True,
             openai_api_key=None,
         )
     except ValueError as exc:
         return _err(422, str(exc))
     _sessions[game_id] = session
     return _ok(_dump(session.state()))
+
+
+def _restore(body: dict) -> dict:
+    game_id = secrets.token_hex(4)
+    try:
+        session = GameSession.from_save(game_id, body.get("save") or {})
+    except SessionError as exc:
+        return _err(400, str(exc))
+    except (KeyError, TypeError, ValueError) as exc:
+        return _err(400, f"invalid save: {exc}")
+    _sessions[game_id] = session
+    return _ok(_dump(session.state()))
+
+
+def _save(game_id: str) -> dict:
+    try:
+        session = _get_session(game_id)
+    except KeyError:
+        return _err(404, f"no game '{game_id}'")
+    try:
+        return _ok(session.export_save())
+    except SessionError as exc:
+        return _err(404, str(exc))
 
 
 def _get_session(game_id: str) -> GameSession:

@@ -22,9 +22,10 @@ early.
 from __future__ import annotations
 
 import random
+from dataclasses import asdict
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from afwip.core.constants import Side, Phase
 from afwip.env import AFWIPEnv
@@ -34,22 +35,81 @@ from afwip.view.export import game_export
 from afwip.view.events import EventRecorder, score_report
 from afwip.view.models import GameView, ScoreReportView, AgentMoveView
 from afwip.web.agents import Agent, make_agent
-from afwip.rl.trajectory import TrajectoryRecorder
+from afwip.rl.trajectory import (
+    TrajectoryRecorder, Trajectory, write_trajectory, DEFAULT_TRAJECTORY_DIR,
+)
 from afwip.rl.state_text import llm_state_text
 
 # Hard ceiling on any automatic advancement loop. Full env games run a few
 # thousand decisions; the env itself truncates at 20k steps.
 MAX_AUTO_STEPS = 30000
 
-# Opponent setup picks that the live tutorial may run in one Continue instead
-# of pausing after every card. Mission stays one step (it is a single choice).
-_DRAFT_BATCH_NODES = frozenset({
-    NodeType.POSTURE_PICK,
+# Opponent setup: one Continue per *kind* of stretch (not per card).
+_POSTURE_BATCH_NODES = frozenset({NodeType.POSTURE_PICK})
+_SQUADRON_BATCH_NODES = frozenset({
     NodeType.SQUADRON_PICK,
     NodeType.SQUADRON_BASE,
-    NodeType.ENABLER_PICK,
-    NodeType.BID_SACRIFICE,
 })
+_ENABLER_BATCH_NODES = frozenset({NodeType.ENABLER_PICK})
+# One Continue runs posture → squadrons → enablers for the opponent.
+_DRAFT_BATCH_NODES = (
+    _POSTURE_BATCH_NODES | _SQUADRON_BATCH_NODES | _ENABLER_BATCH_NODES
+)
+_BID_BATCH_NODES = frozenset({NodeType.BID_SACRIFICE})
+
+# Repeated same-type opponent nodes: one Continue runs the whole streak
+# (e.g. every INTEL_REVEAL peek) instead of one click per card.
+_REPEAT_BATCH_NODES = frozenset({
+    NodeType.INTEL_REVEAL,
+})
+
+# Paced tutorial: after these human choices, hold Continue on the board change
+# before the opponent moves — but only when the next node is *not* still yours
+# (activate → SPAWN_BAND must not insert an empty Continue).
+_PACE_WATCH_HUMAN = frozenset({
+    NodeType.SPAWN_BAND,
+    NodeType.TURN_ACTION,
+    NodeType.ENABLER_BRANCH,
+    NodeType.ALLOC_POINT,
+    NodeType.MD_DECLARE,
+    NodeType.RESPONSE,
+})
+
+# Choices that change nothing worth a "seen it" beat.
+_PACE_WATCH_SKIP_KINDS = frozenset({
+    "pass",
+    "skip",
+    "done",
+})
+
+
+def _batch_group(node_type: NodeType):
+    """Node types that may advance together under one tutorial Continue."""
+    if node_type in _POSTURE_BATCH_NODES:
+        return _POSTURE_BATCH_NODES
+    if node_type in _SQUADRON_BATCH_NODES:
+        return _SQUADRON_BATCH_NODES
+    if node_type in _ENABLER_BATCH_NODES:
+        return _ENABLER_BATCH_NODES
+    if node_type in _BID_BATCH_NODES:
+        return _BID_BATCH_NODES
+    if node_type in _REPEAT_BATCH_NODES:
+        return frozenset({node_type})
+    return None
+
+
+def _batch_name(batch) -> str:
+    if batch == _POSTURE_BATCH_NODES:
+        return "posture"
+    if batch == _SQUADRON_BATCH_NODES:
+        return "squadrons"
+    if batch == _ENABLER_BATCH_NODES:
+        return "enablers"
+    if batch == _BID_BATCH_NODES:
+        return "bid"
+    if batch == frozenset({NodeType.INTEL_REVEAL}):
+        return "intel"
+    return "batch"
 
 
 class GameMode(str, Enum):
@@ -76,17 +136,22 @@ class GameSession:
                  spectator_reveal: bool = True,
                  record: Optional[bool] = None,
                  trajectory_dir: Optional[Path] = None,
-                 openai_api_key: Optional[str] = None):
+                 openai_api_key: Optional[str] = None,
+                 restore: Optional[dict[str, Any]] = None):
         self.game_id = game_id
         self.campaign = campaign
         self.mode = mode
         self.human_side = human_side
         self.seed = seed if seed is not None else random.SystemRandom().randrange(2**31)
         self.agent_name = agent_name
-        self._record = record
+        # Default: record every mode so Save / Load can replay the tape.
+        # Pass record=False to opt out (training harness / tests).
+        self._record = True if record is None else bool(record)
         self._openai_api_key = openai_api_key
         self.spectator_reveal = spectator_reveal
         self._human_choices: list[int] = []
+        self._trajectory_dir = Path(trajectory_dir) if trajectory_dir else DEFAULT_TRAJECTORY_DIR
+        self.trajectory_saved_path: Optional[Path] = None
 
         self.env = AFWIPEnv(campaign=campaign)
         self.env.reset(seed=self.seed)
@@ -95,13 +160,10 @@ class GameSession:
         # engine's dice stream (mirrors the TUI's seed+1 convention).
         self.agent_rng = random.Random(self.seed + 1)
 
-        # Lightweight in-memory decision tape, kept ONLY to power the live
-        # agent-reasoning feed in Watch Agents (agent_v_agent). Saving/exporting
-        # trajectories has been removed — nothing is ever written to disk.
         self.trajectory: Optional[TrajectoryRecorder] = (
             TrajectoryRecorder(campaign, self.seed, self.env.max_turns,
                                source="human")
-            if mode == GameMode.AGENT_V_AGENT else None)
+            if self._record else None)
 
         self.agents: dict[Side, Agent] = {}
         if mode == GameMode.AGENT_V_AGENT:
@@ -133,10 +195,13 @@ class GameSession:
         # Live tutorial: show the opponent one decision at a time, and hold
         # after a roll so a result such as Winchester can be read on the board.
         self.paced = False
-        # When True, the next Continue runs every remaining opponent draft pick
-        # without pausing. Set from a hold that announces the draft batch.
+        # When True, the next Continue runs every remaining node in
+        # `_watch_batch_nodes` without pausing (draft stretch, intel peeks, …).
         self.draft_skip_pending = False
+        self.watch_batch = ""
+        self._watch_batch_nodes = None
         self._skip_draft_batch = False
+        self._last_choice_kind = ""
         self._last_step_rolled = False
         self._last_step_setup_dice = False
         self.score_reports: list[ScoreReportView] = []
@@ -144,8 +209,111 @@ class GameSession:
         node = self._node
         self.authorized_viewer: Optional[Side] = node.side if node else None
 
-        if mode == GameMode.HUMAN_V_AGENT:
+        if restore is not None:
+            self._replay_save(restore)
+        elif mode == GameMode.HUMAN_V_AGENT:
             self.advance_until_human()
+
+    @property
+    def recording(self) -> bool:
+        return self.trajectory is not None
+
+    def build_trajectory(self) -> Trajectory:
+        if self.trajectory is None:
+            raise SessionError("this game is not recording")
+        return self.trajectory.finalize(self.env.engine)
+
+    def save_trajectory(self) -> Path:
+        """Write the current tape to disk (on-demand; used by tests / training)."""
+        traj = self.build_trajectory()
+        path = self._trajectory_dir / f"{self.game_id}.jsonl"
+        write_trajectory(traj, path)
+        self.trajectory_saved_path = path
+        return path
+
+    def export_save(self) -> dict[str, Any]:
+        """JSON payload for browser download — enough to resume this session."""
+        if self.trajectory is None:
+            raise SessionError("this game is not recording a save tape")
+        viewer = self.authorized_viewer.value if self.authorized_viewer else None
+        return {
+            "format": "afwip-save",
+            "schema_version": 1,
+            "campaign": self.campaign,
+            "seed": self.seed,
+            "mode": self.mode.value,
+            "human_side": self.human_side.value,
+            "agent": self.agent_name,
+            "max_turns": self.env.max_turns,
+            "paced": self.paced,
+            "watch_pending": self.watch_pending,
+            "roll_pending": self.roll_pending,
+            "draft_skip_pending": self.draft_skip_pending,
+            "watch_batch": self.watch_batch,
+            "authorized_viewer": viewer,
+            "human_choices": list(self._human_choices),
+            "tape": [asdict(step) for step in self.trajectory.tape],
+        }
+
+    @classmethod
+    def from_save(cls, game_id: str, save: dict[str, Any],
+                  openai_api_key: Optional[str] = None) -> "GameSession":
+        """Rebuild a session by replaying the saved decision tape."""
+        if not isinstance(save, dict) or save.get("format") not in (
+            "afwip-save", "afwip-trajectory", None
+        ):
+            # Accept bare trajectory dicts (campaign/seed/tape) too.
+            if not (isinstance(save, dict) and "tape" in save and "seed" in save):
+                raise SessionError("not a recognized AFWIP save file")
+        try:
+            mode = GameMode(save.get("mode", GameMode.HUMAN_V_AGENT.value))
+            human_side = Side(save.get("human_side", "US"))
+        except ValueError as e:
+            raise SessionError(str(e)) from e
+        return cls(
+            game_id,
+            campaign=int(save.get("campaign", 2)),
+            mode=mode,
+            human_side=human_side,
+            seed=int(save["seed"]),
+            agent_name=str(save.get("agent", "random")),
+            record=True,
+            openai_api_key=openai_api_key,
+            restore=save,
+        )
+
+    def _replay_save(self, save: dict[str, Any]) -> None:
+        """Apply every taped choice without re-asking agents; restore UI holds."""
+        tape = save.get("tape") or []
+        for step in tape:
+            if self._node is None:
+                break
+            idx = int(step["index"])
+            if not 0 <= idx < len(self._node.choices):
+                raise SessionError(
+                    f"save tape broken at decision {step.get('decision_no')}: "
+                    f"index {idx} not in 0..{len(self._node.choices) - 1}"
+                )
+            self._step(idx, justification=step.get("justification"))
+            # Mid-replay must not pause on dice / watch holds.
+            self.roll_pending = False
+            self.watch_pending = False
+            self.draft_skip_pending = False
+            self._skip_draft_batch = False
+        human = self.human_side.value
+        self._human_choices = list(save.get("human_choices") or [
+            int(t["index"]) for t in tape if t.get("side") == human
+        ])
+        self.paced = bool(save.get("paced", self.mode == GameMode.HUMAN_V_AGENT))
+        self.watch_pending = bool(save.get("watch_pending", False))
+        self.roll_pending = bool(save.get("roll_pending", False))
+        self.draft_skip_pending = bool(save.get("draft_skip_pending", False))
+        self.watch_batch = str(save.get("watch_batch") or "")
+        auth = save.get("authorized_viewer")
+        if auth in ("US", "PRC"):
+            self.authorized_viewer = Side(auth)
+        elif self._node is not None:
+            self.authorized_viewer = self._node.side
 
     # -- node access ----------------------------------------------------------
 
@@ -176,11 +344,13 @@ class GameSession:
         before = self.recorder.snapshot()
         prev_ato = self.env.engine.state.ato_cycle
         prev_over = self.env.engine.state.game_over
-        self.recorder.record_decision(self.decision_no, node, node.choices[index])
+        choice = node.choices[index]
+        self._last_choice_kind = choice.kind or ""
+        self.recorder.record_decision(self.decision_no, node, choice)
         if self.trajectory is not None:
             self.trajectory.record(self.decision_no, node, index, justification,
                                    engine=self.env.engine)
-        self._track_draft(node, node.choices[index])
+        self._track_draft(node, choice)
         self.env.step(index)
         self._clear_draft_if_committed()
         # Labeled setup rolls (initiative / cyber / intel) first; this also drops
@@ -301,43 +471,102 @@ class GameSession:
         the one rolling. In the live tutorial (`paced`), non-dice opponent
         decisions also pause for Continue so the board change can be seen.
 
-        Opponent draft picks (posture, squadrons, placement, enablers) are an
-        exception: the tutorial holds once before that stretch, and Continue
-        runs the whole stretch so the student is not clicking through every card.
+        Opponent stretches of the same kind (all enabler picks, all squadron
+        picks, intel peeks, …) hold once; Continue runs the whole stretch so
+        the student is not clicking through every card. Activate + spawn is
+        one launch beat.
         """
         for _ in range(MAX_AUTO_STEPS):
             node = self._node
             if node is None:
                 self._skip_draft_batch = False
+                self._watch_batch_nodes = None
+                self.watch_batch = ""
                 return
             agent = self._agent_for(node)
             if agent is None:
                 self._skip_draft_batch = False
+                self._watch_batch_nodes = None
+                self.watch_batch = ""
                 return
-            if (self.paced and not self._skip_draft_batch
-                    and node.node_type in _DRAFT_BATCH_NODES):
+            batch = _batch_group(node.node_type)
+            if self.paced and not self._skip_draft_batch and batch is not None:
                 self.watch_pending = True
                 self.draft_skip_pending = True
+                self._watch_batch_nodes = batch
+                self.watch_batch = _batch_name(batch)
                 return
+            acted_type = node.node_type
             self._agent_step(node, agent)
             # Pause for the die screen on setup dice and on action dice
             # (acquire / to-hit / damage), including when the AI is rolling in
             # Practice vs Agent so the spectator can watch the tumble.
+            # Keep an in-progress card streak across the die so the rest of
+            # that streak (e.g. remaining enablers) still runs on one Continue.
             if self._last_step_setup_dice or self._last_step_rolled:
                 self.roll_pending = True
-                self._skip_draft_batch = False
+                nxt = self._node
+                batch = self._watch_batch_nodes
+                # Keep a draft streak across setup dice only while the next
+                # node is still part of that draft. Initiative after the last
+                # enabler must not leave skip-batch stuck on.
+                still_draft_streak = (
+                    self._skip_draft_batch
+                    and nxt is not None
+                    and self._agent_for(nxt) is not None
+                    and batch is not None
+                    and (
+                        nxt.node_type in batch
+                        or (batch <= _DRAFT_BATCH_NODES
+                            and nxt.node_type in _DRAFT_BATCH_NODES)
+                    )
+                )
+                if not still_draft_streak:
+                    self._skip_draft_batch = False
+                    self._watch_batch_nodes = None
+                    self.watch_batch = ""
                 return
             if self.paced and self._skip_draft_batch:
                 nxt = self._node
+                batch = self._watch_batch_nodes
                 if (nxt is not None
                         and self._agent_for(nxt) is not None
+                        and batch is not None
+                        and nxt.node_type in batch):
+                    continue
+                # Same Continue: keep going through the rest of their draft
+                # (posture → squadrons → enablers) without another hold.
+                if (nxt is not None
+                        and self._agent_for(nxt) is not None
+                        and batch is not None
+                        and batch <= _DRAFT_BATCH_NODES
                         and nxt.node_type in _DRAFT_BATCH_NODES):
+                    nxt_batch = _batch_group(nxt.node_type)
+                    self._watch_batch_nodes = nxt_batch
+                    self.watch_batch = _batch_name(nxt_batch) if nxt_batch else ""
                     continue
                 self._skip_draft_batch = False
-                if nxt is not None and self._agent_for(nxt) is not None:
-                    self.watch_pending = True
-                return
+                self._watch_batch_nodes = None
+                self.watch_batch = ""
+                # Do not hold again on the last card of the streak — step into
+                # whatever comes next (or return if it is the human's turn).
+                if nxt is None or self._agent_for(nxt) is None:
+                    return
+                continue
             if self.paced:
+                nxt = self._node
+                # Activate squadron then pick the band = one "launch" Continue.
+                if (acted_type == NodeType.TURN_ACTION
+                        and self._last_choice_kind == "activate"
+                        and nxt is not None
+                        and self._agent_for(nxt) is not None
+                        and nxt.node_type == NodeType.SPAWN_BAND):
+                    continue
+                # Pass / skip — keep going; nothing on the board changed.
+                if self._last_choice_kind in _PACE_WATCH_SKIP_KINDS:
+                    if nxt is None or self._agent_for(nxt) is None:
+                        return
+                    continue
                 self.watch_pending = True
                 return
         raise RuntimeError("advance_until_human exceeded MAX_AUTO_STEPS")
@@ -369,6 +598,7 @@ class GameSession:
                 raise SessionError("which side? (viewer required)")
             if node.side != actor_side:
                 raise SessionError(f"not {actor_side.value}'s decision")
+        acted = node.node_type
         self.roll_pending = False            # reflect only the action just taken
         self._step(index, justification=justification)
         self._human_choices.append(index)
@@ -380,7 +610,30 @@ class GameSession:
         if self._last_step_rolled or setup_pause:
             self.roll_pending = True
         elif self.mode == GameMode.HUMAN_V_AGENT:
-            self.advance_until_human()
+            if self.paced and acted in _PACE_WATCH_HUMAN:
+                nxt = self._node
+                still_yours = (
+                    nxt is not None and self._agent_for(nxt) is None
+                )
+                noop = self._last_choice_kind in _PACE_WATCH_SKIP_KINDS
+                if still_yours:
+                    # Activate → choose band, enabler → branch, etc.
+                    return
+                if noop:
+                    # Pass / end turn: hold so the student sees that choice
+                    # before the opponent's full turn starts. Other skips
+                    # (no response, draft done, …) have nothing to stare at.
+                    if self._last_choice_kind == "pass":
+                        self.watch_pending = True
+                        return
+                    self.advance_until_human()
+                    return
+                # Board just changed (spawn landed, shot resolved, …) — hold.
+                # Mid-turn MD / response for the opponent is not their turn yet;
+                # after Continue the human still gets Pass / end turn.
+                self.watch_pending = True
+            else:
+                self.advance_until_human()
 
     def undone(self) -> "GameSession":
         """Replay every human choice except the last, so a mis-clicked card
@@ -391,7 +644,8 @@ class GameSession:
             self.game_id, campaign=self.campaign, mode=self.mode,
             human_side=self.human_side, seed=self.seed,
             agent_name=self.agent_name, spectator_reveal=self.spectator_reveal,
-            record=self._record, openai_api_key=self._openai_api_key,
+            record=self._record, trajectory_dir=self._trajectory_dir,
+            openai_api_key=self._openai_api_key,
         )
         for index in self._human_choices[:-1]:
             actor = None
@@ -409,6 +663,8 @@ class GameSession:
             fresh.authorized_viewer = fresh._node.side
         fresh.paced = self.paced
         fresh.draft_skip_pending = False
+        fresh.watch_batch = ""
+        fresh._watch_batch_nodes = None
         fresh._skip_draft_batch = False
         return fresh
 
@@ -424,6 +680,19 @@ class GameSession:
         if self.mode != GameMode.HUMAN_V_AGENT:
             return
         if self.paced:
+            # Mid-streak setup dice (initiative on the last enabler, …): the die
+            # UI already showed the tumble. End the card streak here so the next
+            # Continue is the next *kind* of action (bid / first player / turn),
+            # not another per-card pause and not a swallowed setup step.
+            if self._skip_draft_batch:
+                self._skip_draft_batch = False
+                self._watch_batch_nodes = None
+                self.watch_batch = ""
+            nxt = self._node
+            # Still your decision (often Pass / end turn after a spot or shot) —
+            # show the choices; do not hide them behind Continue.
+            if nxt is not None and self._agent_for(nxt) is None:
+                return
             self.watch_pending = True
             return
         self.advance_until_human()
@@ -431,8 +700,8 @@ class GameSession:
     def continue_watch(self) -> None:
         """Leave the tutorial's hold and play the next opponent decision.
 
-        If the hold was the draft-batch announcement, run every remaining
-        opponent draft pick before pausing again.
+        If the hold was a batch announcement (draft stretch, intel peeks, …),
+        run every remaining node in that batch before pausing again.
         """
         if not self.watch_pending:
             raise SessionError("nothing to continue")
@@ -440,6 +709,7 @@ class GameSession:
         if self.draft_skip_pending:
             self.draft_skip_pending = False
             self._skip_draft_batch = True
+            # `_watch_batch_nodes` / `watch_batch` stay set until the streak ends.
         if self.mode == GameMode.HUMAN_V_AGENT:
             self.advance_until_human()
 
@@ -518,6 +788,9 @@ class GameSession:
             roll_pending=self.roll_pending,
             watch_pending=self.watch_pending,
             draft_skip_pending=self.draft_skip_pending,
+            watch_batch=self.watch_batch,
+            recording=self.recording,
+            trajectory_saved=self.trajectory_saved_path is not None,
             agent_log=self._agent_log(),
             status=serializer.status_view(eng),
             board=serializer.board_view(eng, viewer, reveal),
