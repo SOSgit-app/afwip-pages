@@ -554,13 +554,14 @@ body.afwip-manual .topbar > span:last-of-type {
 .choice-card-preview,
 #live-card-preview {
   top: auto;
-  bottom: 12px;
+  /* Sit above the EVENT LOG toggle / panel so the full card stays readable. */
+  bottom: 72px;
   left: 12px;
   right: auto;
   width: max-content;
   max-width: 320px;
   height: auto;
-  max-height: calc(100vh - var(--live-h, 0px) - 84px);
+  max-height: calc(100vh - var(--live-h, 0px) - 144px);
   padding: 0;
   border: none;
   border-radius: 0;
@@ -581,7 +582,7 @@ body.afwip-viewer-prc #live-card-preview {
   width: auto;
   height: auto;
   max-width: 320px;
-  max-height: calc(100vh - var(--live-h, 0px) - 84px);
+  max-height: calc(100vh - var(--live-h, 0px) - 144px);
   object-fit: contain;
   object-position: left bottom;
   display: block;
