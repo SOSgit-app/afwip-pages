@@ -1147,8 +1147,8 @@ def _fighter_draft_count(view: GameView) -> int:
 
 
 def _suggest_draft(view: GameView) -> str:
-    """Tutorial draft: AEW + fighters so the student can launch and shoot,
-    not a bomber stack that dies on the airbase to the first missile card."""
+    """Tutorial draft: AEW + fighters + one bomber so the student learns
+    spotting, air combat, and base strikes — not a bomber-only stack."""
     choices = view.decision.choices
     owned = _drafted_scores(view)
     names = _drafted_names(view)
@@ -1165,21 +1165,30 @@ def _suggest_draft(view: GameView) -> str:
         fighter = _best_fighter(choices)
         if fighter is not None:
             return _say(fighter, _squadron_reason(fighter.card_id))
-    if len(names) < 4:
-        fighter = _best_fighter(choices)
-        if fighter is not None:
-            return _say(fighter, _squadron_reason(fighter.card_id))
+    # 4) One bomber — teach base strikes / standoff, not only air-to-air.
+    if TokenScoreType.BOMBER not in owned:
         bomber = _find(choices, lambda c: (
             _squadron_token(c.card_id) is not None
             and _squadron_token(c.card_id).token_score_type == TokenScoreType.BOMBER
         ))
         if bomber is not None:
             return _say(bomber, _squadron_reason(bomber.card_id))
+    if len(names) < 4:
+        fighter = _best_fighter(choices)
+        if fighter is not None:
+            return _say(fighter, _squadron_reason(fighter.card_id))
     done = _find(choices, lambda c: c.kind == "done")
-    if done is not None and len(names) >= 3:
+    if (
+        done is not None
+        and len(names) >= 4
+        and TokenScoreType.AEW in owned
+        and TokenScoreType.BOMBER in owned
+        and _fighter_draft_count(view) >= 2
+    ):
         return _say(
             done,
-            "You have a spotter and fighters. Stop here so you can learn to launch and shoot them.",
+            "You have a spotter, fighters, and a bomber. Stop here so you can "
+            "learn to launch, shoot, and strike the enemy airbase.",
         )
     pick = next((c for c in choices if c.kind == "pick"), choices[0])
     return _say(pick, _squadron_reason(pick.card_id))
@@ -1268,20 +1277,6 @@ def _suggest_turn(view: GameView) -> str:
             hit = _find(enablers, lambda c, i=cid: c.card_id == i)
             if hit is not None:
                 return _say(hit, _enabler_reason(hit.card_id))
-    bomber_launch = [
-        c for c in launches
-        if _squadron_token(c.card_id) is not None
-        and _squadron_token(c.card_id).token_score_type == TokenScoreType.BOMBER
-    ]
-    bomber_up = [
-        token for token in squadron_up
-        if token.type and ("B-52" in token.type or "H-6" in token.type)
-    ]
-    if bomber_launch and not bomber_up and squadron_up:
-        return _say(
-            bomber_launch[0],
-            "A bomber can strike the enemy airbase without a spot. That fills a point box and scores 1 victory point.",
-        )
     surface = [c for c in choices if c.kind == "shoot_surface"]
     if surface:
         return _say(surface[0], "A base strike does not need a spot first. Filling an airbase box scores 1 victory point.")
@@ -1312,6 +1307,22 @@ def _suggest_turn(view: GameView) -> str:
             fighter_launches[0],
             "Launch fighters next. The spotter alone cannot stop enemy ships, and "
             "shuttling it between bands only delays the fight.",
+        )
+    # Bomber after fighters are airborne — teach air control, then base strikes.
+    bomber_launch = [
+        c for c in launches
+        if _squadron_token(c.card_id) is not None
+        and _squadron_token(c.card_id).token_score_type == TokenScoreType.BOMBER
+    ]
+    bomber_up = [
+        token for token in squadron_up
+        if token.type and ("B-52" in token.type or "H-6" in token.type)
+    ]
+    if bomber_launch and not bomber_up and fighters_up:
+        return _say(
+            bomber_launch[0],
+            "Launch the bomber from standoff. A base strike does not need a spot, "
+            "fills an airbase box, and scores 1 victory point.",
         )
     # Once one flight is up, keep launching — do not shuttle an F-22 A↔B while
     # more fighters (including surface-capable ones) still sit on the airbase.
