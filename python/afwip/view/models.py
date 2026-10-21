@@ -29,6 +29,10 @@ class TokenView(BaseModel):
     type: Optional[str] = None      # None when fogged
     winchester: Optional[bool] = None
     grounded: Optional[bool] = None
+    # Damage boxes filled on this token's source squadron card (public once the
+    # squadron is known). Shown on the board chip so you can see which airborne
+    # aircraft belong to a damaged squadron — not only the roster "dmg N" pill.
+    squadron_damage: Optional[int] = None
 
 
 class BandView(BaseModel):
@@ -199,8 +203,8 @@ class GameView(BaseModel):
     handoff_required: bool = False  # hotseat: pass the device before showing state
     roll_pending: bool = False      # reveal dice (human / Watch Agents), then POST /reveal
     watch_pending: bool = False     # tutorial: board is held until POST /watch
-    # Tutorial: Continue will run the opponent's whole draft (posture /
-    # squadrons / enablers) in one jump instead of one Continue per card.
+    # Tutorial: Continue will run a whole opponent stretch (draft, intel peeks,
+    # …) in one jump instead of one Continue per card.
     draft_skip_pending: bool = False
     # Which stretch Continue will skip: "" | "draft" | "intel"
     watch_batch: str = ""

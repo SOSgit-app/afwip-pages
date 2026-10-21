@@ -30,7 +30,8 @@ from afwip.view.models import (
 )
 
 
-def token_view(t: TokenInstance, viewer: Optional[Side], reveal: bool) -> TokenView:
+def token_view(t: TokenInstance, viewer: Optional[Side], reveal: bool,
+               squadron_damage: Optional[int] = None) -> TokenView:
     known = fog.token_known(t, viewer, reveal)
     av = t.profile.acquisition_value
     if not known:
@@ -40,11 +41,13 @@ def token_view(t: TokenInstance, viewer: Optional[Side], reveal: bool) -> TokenV
                          label=f"?#{t.uid}(av{av})")
     flags = ("*" if t.acquired else "") + ("W" if t.is_winchester else "") \
         + ("g" if t.grounded else "")
+    dmg = squadron_damage if squadron_damage and squadron_damage > 0 else None
     return TokenView(uid=t.uid, side=t.side.value, band=t.location.name,
                      fogged=False, av=av, acquired=t.acquired,
                      label=f"{t.token_type.value}#{t.uid}{flags}",
                      type=t.token_type.value,
-                     winchester=t.is_winchester, grounded=t.grounded)
+                     winchester=t.is_winchester, grounded=t.grounded,
+                     squadron_damage=dmg)
 
 
 def board_view(eng: RulesEngine, viewer: Optional[Side], reveal: bool) -> BoardView:
@@ -53,8 +56,14 @@ def board_view(eng: RulesEngine, viewer: Optional[Side], reveal: bool) -> BoardV
     for band, header in BOARD_BANDS:
         toks = []
         for side in (Side.US, Side.PRC):
-            for t in sorted(gs.player(side).tokens_at(band), key=lambda t: t.uid):
-                toks.append(token_view(t, viewer, reveal))
+            player = gs.player(side)
+            for t in sorted(player.tokens_at(band), key=lambda t: t.uid):
+                sq_dmg = None
+                if t.source_card_id is not None:
+                    squad = player.squadrons.get(t.source_card_id)
+                    if squad is not None and squad.damage > 0:
+                        sq_dmg = squad.damage
+                toks.append(token_view(t, viewer, reveal, squadron_damage=sq_dmg))
         bands.append(BandView(band=band.name, header=header, tokens=toks))
     return BoardView(bands=bands)
 
