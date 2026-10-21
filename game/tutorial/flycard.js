@@ -46,9 +46,14 @@
   }
 
   function sideRoot(side) {
-    if (side === "PRC") return document.querySelector(".side-col-prc");
-    return document.querySelector(".right-col .roster-stack")
-      || document.querySelector(".right-col");
+    // Use the full side column — NOT .roster-stack. That stack is only the
+    // shot-down / capture panels; US spent lives under the Hand panel, so
+    // aiming at roster-stack made enablers fly into Shot down.
+    if (side === "PRC") {
+      return document.querySelector(".side-col-prc")
+        || document.querySelector(".side-col");
+    }
+    return document.querySelector(".right-col");
   }
 
   function panelByHeading(root, re) {
@@ -74,14 +79,23 @@
       const cells = spent.querySelectorAll(".card-cell.spent");
       return rectOf(cells[cells.length - 1] || spent.querySelector(".card-row") || spent);
     }
+    // First spent card: Spent block is not mounted yet — aim at the Hand panel.
     const hand = panelByHeading(root, /hand|enabler/i);
-    return rectOf(hand || root);
+    if (hand) {
+      const row = hand.querySelector(".card-row");
+      return rectOf(row || hand);
+    }
+    return null;
   }
 
   function shotDownRect(side) {
     const root = sideRoot(side);
-    const panel = panelByHeading(root, /shot down/i);
-    if (!panel) return rectOf(root);
+    if (!root) return null;
+    // Prefer the capture/trophy panel; fall back to a roster-stack inside the column.
+    const panel = panelByHeading(root, /shot down|captures|troph/i)
+      || root.querySelector(".roster-stack .panel")
+      || root.querySelector(".roster-stack");
+    if (!panel) return null;
     const trophies = panel.querySelectorAll(".trophy");
     return rectOf(trophies[trophies.length - 1] || panel.querySelector(".trophy-row") || panel);
   }
