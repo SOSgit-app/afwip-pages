@@ -162,6 +162,11 @@ _LESSONS: dict[str, tuple[str, str, str]] = {
         "The board is the current truth: face-up tokens are identified, face-down tokens are not, and squadron cards on a base have not all launched.",
         "Your next choice shows up on the right as soon as it is your turn.",
     ),
+    "new_ato": (
+        "Next ATO cycle",
+        "Both sides passed in a row, so this ATO is over. Aircraft still in the air return to their squadron cards, end-of-cycle points are scored, and the board clears. The campaign continues with a fresh draft for the next ATO.",
+        "Watch the aircraft come home. Then you pick posture, squadrons, and enablers again.",
+    ),
     "opponent_draft": (
         "Their draft",
         "The other side also picks a posture, then squadrons and enablers, the same way you just did. You do not need to click through every one of their cards.",
@@ -205,6 +210,10 @@ _WHY = {
     "score": "The score moved because the mission pays for what was just destroyed, plus 1 for each enemy airbase box you fill.",
     "game_end": "The game is over. Cyber rate 4 wins immediately. Otherwise the higher victory-point total wins.",
     "between": "The other side is taking its turn. Your choices come back as soon as it is done.",
+    "new_ato": (
+        "A new ATO is about to begin. Surviving squadrons can be drafted again; "
+        "destroyed cards stay out; airbase boxes and victory points stay."
+    ),
     "opponent_draft": "They are building the force you will fight. One Continue skips ahead to when their whole draft is done.",
     "opponent_intel": "They are peeking at cards from the initiative intel roll. One Continue skips through every peek.",
     "roll": "You click the die because this result is random. The face it lands on is the whole answer.",
@@ -398,15 +407,54 @@ def _roll_why(view: GameView) -> str:
 def _why(view: GameView, concept: str) -> str:
     if view.roll_pending:
         return _roll_why(view)
+    if concept == "new_ato":
+        # Worth saying even on a Continue hold — students otherwise only see
+        # cards flying home and think the game is restarting at random.
+        return _WHY["new_ato"]
     if view.watch_pending:
         # Status + Continue button already explain pacing — avoid a second sermon.
         return ""
     return _WHY.get(concept, "You make this choice because it is the next legal step in the turn.")
 
 
+def _ato_rolled_over(view: GameView) -> bool:
+    """True only on the beat that teaches 'a new ATO is starting'.
+
+    `score_report` is for the cycle that just ended; `status.ato_cycle` has
+    already advanced. The report stays on the view for the whole next cycle,
+    so we only fire on the closing Continue hold and the first posture pick —
+    not on every later watch or choice. Terminal games use `game_end`.
+    """
+    report = view.score_report
+    if report is None or view.terminal:
+        return False
+    if view.status.ato_cycle != report.ato + 1:
+        return False
+    # Continue hold right after the closing pass (phase is already ATO_SETUP).
+    if view.watch_pending:
+        if view.status.phase != "ATO_SETUP":
+            return False
+        events = _latest_step(view)
+        if any(ev.type == "token_recycled" for ev in events):
+            return True
+        for ev in reversed(events):
+            if ev.type != "decision":
+                continue
+            return (ev.data or {}).get("kind") == "pass"
+        return False
+    # First draft choice of the new cycle (missions persist; posture is reset).
+    decision = view.decision
+    if decision is None or decision.node_type != "POSTURE_PICK":
+        return False
+    postures = view.status.postures or {}
+    return not postures.get(decision.side)
+
+
 def _concept(view: GameView) -> str:
     if view.roll_pending:
         return _roll_concept(view)
+    if _ato_rolled_over(view):
+        return "new_ato"
     if view.watch_pending and view.draft_skip_pending:
         if getattr(view, "watch_batch", "") == "intel":
             return "opponent_intel"
@@ -501,6 +549,12 @@ def _watch_choice_label(label: str) -> str:
 def _watch_status(view: GameView) -> str:
     """Short line: what this Continue hold is pausing on (no click cue)."""
     who = _watch_opponent(view)
+    if _ato_rolled_over(view):
+        report = view.score_report
+        closed = report.ato if report is not None else max(1, view.status.ato_cycle - 1)
+        nxt = view.status.ato_cycle
+        total = view.status.total_ato_cycles
+        return f"ATO {closed} ended — ATO {nxt} of {total} begins"
     if view.watch_pending and not view.draft_skip_pending:
         for ev in reversed(_latest_step(view)):
             if ev.type != "decision":
@@ -576,6 +630,11 @@ def _watch_notice(view: GameView) -> str:
     """Yellow dock line for a Continue hold — one fact, no repeated Continue sermon."""
     status = _watch_status(view)
     who = _watch_opponent(view)
+    if _ato_rolled_over(view):
+        return (
+            f"{status}. Aircraft return home and end-of-cycle points are scored. "
+            "Next you draft again for the new ATO."
+        )
     if view.watch_pending and not view.draft_skip_pending:
         for ev in reversed(_latest_step(view)):
             if ev.type != "decision":
@@ -1436,6 +1495,13 @@ def _suggest(view: GameView) -> str:
     if node == "POSTURE_PICK":
         standard = _find(choices, lambda c: "STANDARD" in c.label.upper())
         pick = standard or choices[0]
+        if _ato_rolled_over(view):
+            return _say(
+                pick,
+                f"ATO {view.status.ato_cycle} of {view.status.total_ato_cycles} "
+                "starts with a fresh draft. Standard again lets you bring "
+                "3 or 4 squadrons and 6 enabler cards.",
+            )
         return _say(pick, "Standard lets you bring 3 or 4 squadrons and 6 enabler cards. The US can still use the contingency location.")
     if node == "SQUADRON_PICK":
         return _suggest_draft(view)
@@ -1502,8 +1568,10 @@ def explain(
             cards = w_cards
         if w_tokens:
             tokens = w_tokens
-        who = watch_side or _watch_opponent(view)
-        title = f"Watching {who}"
+        # Keep the "Next ATO cycle" title — do not rename it to "Watching …".
+        if concept != "new_ato":
+            who = watch_side or _watch_opponent(view)
+            title = f"Watching {who}"
         if watch_continues_remaining is not None and watch_continues_remaining > 0:
             unit = "step" if watch_continues_remaining == 1 else "steps"
             now = f"{now} · {watch_continues_remaining} {unit} left"

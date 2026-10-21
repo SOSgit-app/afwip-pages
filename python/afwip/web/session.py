@@ -672,7 +672,16 @@ class GameSession:
                 noop = self._last_choice_kind in _PACE_WATCH_SKIP_KINDS
                 if still_yours:
                     # Activate → choose band, enabler → branch, etc.
-                    # Never hide Pass behind Continue after a launch.
+                    # Never hide Pass behind Continue after a launch —
+                    # except when that pass closed the ATO: aircraft recycle
+                    # home and the coach needs a beat to say the next cycle
+                    # is starting (next node is often the human's posture).
+                    if (self._last_choice_kind == "pass"
+                            and self.score_reports
+                            and self.env.engine.state.phase == Phase.ATO_SETUP
+                            and (self.env.engine.state.ato_cycle
+                                 == self.score_reports[-1].ato + 1)):
+                        self.watch_pending = True
                     return
                 if noop:
                     # Pass / end turn: hold so the student sees that choice
