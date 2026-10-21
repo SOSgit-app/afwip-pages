@@ -847,6 +847,18 @@ def _squadron_token(card_id: int | None):
     return TOKEN_REGISTRY.get(profile.token_type)
 
 
+def _move_is_aew(view: GameView, choice: ChoiceView) -> bool:
+    """True when this move choice is for an airborne AEW token."""
+    uid = choice.actor_uid
+    if uid is None:
+        return "AEW" in (choice.label or "").upper()
+    for band in view.board.bands:
+        for token in band.tokens:
+            if token.uid == uid:
+                return bool(token.type and "AEW" in token.type.upper())
+    return "AEW" in (choice.label or "").upper()
+
+
 def _drafted_names(view: GameView) -> list[str]:
     """Squadron names already taken in this cycle's draft.
 
@@ -1182,10 +1194,48 @@ def _suggest_turn(view: GameView) -> str:
     spots = [c for c in choices if c.kind == "acquire"]
     if spots:
         return _say(spots[0], "That token is face-down. You cannot shoot an aircraft until this spot succeeds.")
+    # After the spotter is up, launch fighters BEFORE AEW band-shuttling.
+    # Seed 3 used to ping-pong AEW A↔B for many turns while fighters sat on
+    # the airbase — boring, and it delays the rest of the tutorial.
+    fighter_launches = [
+        c for c in launches
+        if _squadron_token(c.card_id) is not None
+        and _squadron_token(c.card_id).token_score_type == TokenScoreType.FIGHTER
+    ]
+    fighters_up = [
+        token for token in squadron_up
+        if token.type and any(
+            profile.token_type.value == token.type
+            and profile.token_score_type == TokenScoreType.FIGHTER
+            for profile in TOKEN_REGISTRY.values()
+        )
+    ]
+    if fighter_launches and not fighters_up:
+        return _say(
+            fighter_launches[0],
+            "Launch fighters next. The spotter alone cannot stop enemy ships, and "
+            "shuttling it between bands only delays the fight.",
+        )
     moves = [c for c in choices if c.kind == "move"]
-    if moves:
-        return _say(moves[0], "Moving one token can put a later shot in range, or step you out of theirs.")
     passed = _find(choices, lambda c: c.kind == "pass")
+    if moves:
+        # Skip AEW-only shuttles when fighters still are not airborne — pick a
+        # non-AEW move if one exists, otherwise fall through to launch/pass.
+        useful = [m for m in moves if not _move_is_aew(view, m)]
+        if useful:
+            return _say(useful[0], "Moving one token can put a later shot in range, or step you out of theirs.")
+        if not fighters_up and (fighter_launches or passed is not None):
+            if fighter_launches:
+                return _say(
+                    fighter_launches[0],
+                    "Launch fighters instead of shuttling the spotter between bands.",
+                )
+            return _say(
+                passed,
+                "Do not keep moving the spotter. Pass so you can launch fighters "
+                "on the next turn.",
+            )
+        return _say(moves[0], "Moving one token can put a later shot in range, or step you out of theirs.")
     if launches and passed is not None:
         fighter = next((
             c for c in launches
