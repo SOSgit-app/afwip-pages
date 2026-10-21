@@ -859,6 +859,103 @@ def _move_is_aew(view: GameView, choice: ChoiceView) -> bool:
     return "AEW" in (choice.label or "").upper()
 
 
+def _token_at(view: GameView, uid: int | None):
+    if uid is None:
+        return None
+    for band in view.board.bands:
+        for token in band.tokens:
+            if token.uid == uid:
+                return token
+    return None
+
+
+def _is_ship_type(type_name: str | None) -> bool:
+    if not type_name:
+        return False
+    upper = type_name.upper()
+    return any(
+        key in upper
+        for key in (
+            "DALIAN", "NANNING", "DDG", "CRUISER", "FLOTILLA",
+            "DESTROYER", "MISSILE BOAT",
+        )
+    )
+
+
+def _fighter_can_surface(type_name: str | None) -> bool:
+    if not type_name:
+        return False
+    for profile in TOKEN_REGISTRY.values():
+        if profile.token_type.value == type_name:
+            return profile.surf_atk_range is not None
+    return False
+
+
+def _enemy_air_on_band(view: GameView, band_name: str | None, side: str) -> bool:
+    """Enemy aircraft (including face-down) on this band — worth moving to spot/shoot."""
+    if not band_name:
+        return False
+    enemy = "PRC" if side == "US" else "US"
+    for band in view.board.bands:
+        if band.band != band_name:
+            continue
+        for token in band.tokens:
+            if token.side != enemy:
+                continue
+            if token.fogged:
+                return True
+            if token.type and not _is_ship_type(token.type):
+                # Ships are not air targets; skip ADA/base clutter by type name.
+                if "ADA" in token.type.upper():
+                    continue
+                return True
+    return False
+
+
+def _enemy_ship_on_band(view: GameView, band_name: str | None, side: str) -> bool:
+    if not band_name:
+        return False
+    enemy = "PRC" if side == "US" else "US"
+    for band in view.board.bands:
+        if band.band != band_name:
+            continue
+        for token in band.tokens:
+            if token.side == enemy and _is_ship_type(token.type):
+                return True
+    return False
+
+
+def _score_move(view: GameView, choice: ChoiceView) -> int:
+    """Higher = better. Prefer closing for a spot/shot; avoid ship chases with
+    air-only fighters and AEW shuttles."""
+    if _move_is_aew(view, choice):
+        return -20
+    side = view.decision.side if view.decision else "US"
+    dest = choice.band
+    actor = _token_at(view, choice.actor_uid)
+    actor_type = actor.type if actor else None
+    score = 0
+    if _enemy_air_on_band(view, dest, side):
+        score += 50
+    if _enemy_ship_on_band(view, dest, side):
+        if _fighter_can_surface(actor_type):
+            score += 40
+        else:
+            # F-22 / F-15C cannot shoot ships — do not chase them band to band.
+            score -= 30
+    return score
+
+
+def _best_move(view: GameView, moves: list[ChoiceView]) -> ChoiceView | None:
+    if not moves:
+        return None
+    ranked = sorted(moves, key=lambda m: (_score_move(view, m), m.index), reverse=True)
+    best = ranked[0]
+    if _score_move(view, best) < 0:
+        return None
+    return best
+
+
 def _drafted_names(view: GameView) -> list[str]:
     """Squadron names already taken in this cycle's draft.
 
@@ -1216,26 +1313,43 @@ def _suggest_turn(view: GameView) -> str:
             "Launch fighters next. The spotter alone cannot stop enemy ships, and "
             "shuttling it between bands only delays the fight.",
         )
+    # Once one flight is up, keep launching — do not shuttle an F-22 A↔B while
+    # more fighters (including surface-capable ones) still sit on the airbase.
+    if fighter_launches and not air and not spots and not surface:
+        return _say(
+            fighter_launches[0],
+            "Launch another flight. An F-22 cannot shoot ships, and moving the "
+            "same fighter between Band A and Band B only wastes the turn.",
+        )
     moves = [c for c in choices if c.kind == "move"]
     passed = _find(choices, lambda c: c.kind == "pass")
     if moves:
-        # Skip AEW-only shuttles when fighters still are not airborne — pick a
-        # non-AEW move if one exists, otherwise fall through to launch/pass.
-        useful = [m for m in moves if not _move_is_aew(view, m)]
-        if useful:
-            return _say(useful[0], "Moving one token can put a later shot in range, or step you out of theirs.")
-        if not fighters_up and (fighter_launches or passed is not None):
-            if fighter_launches:
-                return _say(
-                    fighter_launches[0],
-                    "Launch fighters instead of shuttling the spotter between bands.",
+        pick = _best_move(view, moves)
+        if pick is not None:
+            actor = _token_at(view, pick.actor_uid)
+            actor_type = actor.type if actor else None
+            why = "Moving one token can put a later shot in range, or step you out of theirs."
+            if _enemy_ship_on_band(view, pick.band, side) and _fighter_can_surface(actor_type):
+                why = (
+                    "Move onto the ship's band so a surface shot is in range. "
+                    "Fighters with a surface attack can engage Dalian / Nanning."
                 )
+            elif _enemy_air_on_band(view, pick.band, side):
+                why = (
+                    "Move onto that band so you can spot or shoot the enemy aircraft there."
+                )
+            return _say(pick, why)
+        # No useful move (would only chase ships with air-only fighters, or AEW).
+        if fighter_launches:
+            return _say(
+                fighter_launches[0],
+                "Launch a fighter that can shoot ships instead of shuttling the F-22.",
+            )
+        if passed is not None:
             return _say(
                 passed,
-                "Do not keep moving the spotter. Pass so you can launch fighters "
-                "on the next turn.",
+                "That move does not set up a shot. Pass and wait for a better opening.",
             )
-        return _say(moves[0], "Moving one token can put a later shot in range, or step you out of theirs.")
     if launches and passed is not None:
         fighter = next((
             c for c in launches
