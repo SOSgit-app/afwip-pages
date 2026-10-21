@@ -213,6 +213,10 @@
     watchTimerRev = null;
   }
   function scheduleWatchAdvance(force) {
+    if (window.__afwipAtoAlert && window.__afwipAtoAlert.isOpen()) {
+      clearWatchTimer();
+      return;
+    }
     if (!watchPending || watchPaused || rolling()) {
       if (!watchPending || watchPaused) clearWatchTimer();
       return;
@@ -234,6 +238,7 @@
     const game = readGame();
     if (!game || typeof window.__afwipApply !== "function") return;
     if (watchAdvancing || watchPaused || rolling()) return;
+    if (window.__afwipAtoAlert && window.__afwipAtoAlert.isOpen()) return;
     watchAdvancing = true;
     clearWatchTimer();
     clearWatchHits();
@@ -443,6 +448,9 @@
       saveSeen();
     }
     if (dieNote(data) && !rolling()) recoverDie(readGame());
+    if (window.__afwipAtoAlert) {
+      window.__afwipAtoAlert.maybeShow(data, readGame());
+    }
     dock.classList.remove("first");
     fit();
     markPick();
@@ -839,6 +847,7 @@
       watchPending = false;
       clearWatchTimer();
       paintPauseBtn();
+      if (window.__afwipAtoAlert) window.__afwipAtoAlert.hide();
       fit();
       await syncPauseBtn();
       return;
@@ -1305,4 +1314,11 @@
     }
     if (otherGame(btn)) leaveTutorial();
   }, true);
+
+  // Hooks for the mid-board ATO alert (ato.js).
+  window.__afwipClearWatchTimer = clearWatchTimer;
+  window.__afwipAdvanceWatch = async function () {
+    if (!watchPending) return;
+    await advanceWatch();
+  };
 })();
