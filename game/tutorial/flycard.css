@@ -19,6 +19,13 @@
     height 0.62s cubic-bezier(0.22, 0.82, 0.2, 1),
     opacity 0.18s ease;
 }
+#card-fly.is-prc {
+  border-color: #ff6b5a;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 107, 90, 0.35);
+}
+#card-fly.is-us {
+  border-color: #ffd166;
+}
 #card-fly[hidden] { display: none; }
 #card-fly.show { opacity: 1; }
 #card-fly.settle { opacity: 0; }
@@ -29,6 +36,36 @@
   object-fit: cover;
   object-position: center top;
 }
+.card-fly-kicker {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 8px;
+  z-index: 1;
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(12, 16, 24, 0.88);
+  color: #ffd166;
+  font-family: "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.2;
+  pointer-events: none;
+}
+#card-fly.is-prc .card-fly-kicker {
+  color: #ffc4bc;
+  background: rgba(72, 18, 14, 0.92);
+}
+.card-fly-kicker[hidden] { display: none; }
 body.afwip-card-fly #enabler-overlay {
   display: none !important;
+}
+/* While an enabler is revealed on the board, hide the corner hover preview. */
+body.afwip-enabler-reveal .choice-card-preview,
+body.afwip-enabler-reveal #live-card-preview {
+  visibility: hidden !important;
 }

@@ -6,8 +6,12 @@
   const fly = document.createElement("div");
   fly.id = "card-fly";
   fly.hidden = true;
+  const kicker = document.createElement("p");
+  kicker.className = "card-fly-kicker";
+  kicker.hidden = true;
   const img = document.createElement("img");
   img.alt = "";
+  fly.appendChild(kicker);
   fly.appendChild(img);
   document.body.appendChild(fly);
 
@@ -108,18 +112,24 @@
     return rectOf(hot) || boardCenterRect();
   }
 
-  function boardCenterRect() {
+  function boardCenterRect(reveal) {
+    // reveal=true: large middle-of-board hold so enabler plays read as "this
+    // card just hit the table" — not the usual corner hover preview.
     const board = document.querySelector(".board-wrap") || document.querySelector(".board-panel");
     const r = rectOf(board);
     if (!r) {
+      const w = reveal ? 280 : 180;
+      const h = w * 1.35;
       return {
-        left: window.innerWidth / 2 - 90,
-        top: window.innerHeight / 2 - 120,
-        width: 180,
-        height: 240,
+        left: window.innerWidth / 2 - w / 2,
+        top: window.innerHeight / 2 - h / 2,
+        width: w,
+        height: h,
       };
     }
-    const w = Math.min(200, Math.max(140, r.width * 0.22));
+    const w = reveal
+      ? Math.min(320, Math.max(220, r.width * 0.34))
+      : Math.min(200, Math.max(140, r.width * 0.22));
     const h = w * 1.35;
     return {
       left: r.left + (r.width - w) / 2,
@@ -168,11 +178,28 @@
   async function animate(move) {
     const src = move.src || artUrl(move.cardId);
     if (!src) return;
+    const enablerPlay = move.dest === "spent";
     document.body.classList.add("afwip-card-fly");
+    if (enablerPlay) document.body.classList.add("afwip-enabler-reveal");
     img.src = src;
-    const start = previewRect() || boardCenterRect();
-    const holdW = Math.max(160, start.width || 180);
-    const holdH = Math.max(210, start.height || holdW * 1.35);
+    img.alt = (move.name || "Enabler") + " card";
+    fly.classList.toggle("is-prc", move.side === "PRC");
+    fly.classList.toggle("is-us", move.side === "US");
+    if (enablerPlay) {
+      kicker.hidden = false;
+      kicker.textContent = (move.side || "") + (move.side ? " " : "") + "plays enabler";
+    } else {
+      kicker.hidden = true;
+      kicker.textContent = "";
+    }
+    // Enablers always open in the board center so PRC/US plays read clearly.
+    const start = enablerPlay ? boardCenterRect(true) : (previewRect() || boardCenterRect(false));
+    const holdW = enablerPlay
+      ? Math.max(220, start.width || 260)
+      : Math.max(160, start.width || 180);
+    const holdH = enablerPlay
+      ? Math.max(300, start.height || holdW * 1.35)
+      : Math.max(210, start.height || holdW * 1.35);
     fly.hidden = false;
     fly.classList.remove("settle", "show");
     fly.style.transition = "none";
@@ -180,28 +207,32 @@
     await waitFrames(2);
     fly.classList.add("show");
     if (reduce) {
-      await wait(280);
+      await wait(enablerPlay ? 700 : 280);
       fly.classList.add("settle");
       await wait(160);
       fly.hidden = true;
-      fly.classList.remove("show", "settle");
-      document.body.classList.remove("afwip-card-fly");
+      fly.classList.remove("show", "settle", "is-prc", "is-us");
+      kicker.hidden = true;
+      document.body.classList.remove("afwip-card-fly", "afwip-enabler-reveal");
       return;
     }
-    await wait(420);
+    // Hold the reveal long enough to read the card before it flies to spent.
+    await wait(enablerPlay ? 1400 : 420);
     // Let React finish painting the destination pile before we aim at it.
     await waitFrames(3);
     const end = targetRect(move);
     const endW = Math.max(36, Math.min(72, end.width || 48));
     const endH = Math.max(48, Math.min(96, end.height || endW * 1.35));
     fly.style.transition = "";
+    kicker.hidden = true;
     place(end, endW, endH);
     await wait(680);
     fly.classList.add("settle");
     await wait(180);
     fly.hidden = true;
-    fly.classList.remove("show", "settle");
-    document.body.classList.remove("afwip-card-fly");
+    fly.classList.remove("show", "settle", "is-prc", "is-us");
+    kicker.hidden = true;
+    document.body.classList.remove("afwip-card-fly", "afwip-enabler-reveal");
   }
 
   async function drain() {
@@ -297,6 +328,7 @@
           dest: play.dest === "board" ? "board" : "spent",
           side: play.side,
           cardId: cardId,
+          name: play.name || "",
           src: artUrl(cardId) || (pending && pending.src) || "",
         });
         return;
